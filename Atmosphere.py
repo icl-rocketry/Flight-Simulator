@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 
 class Environment:
     def __init__(self):
@@ -28,6 +29,19 @@ class Environment:
         self.density = 1.225
         self.temperature = 288.15
 
+        #Wind Parameters
+        self.windSpeed = 8
+        self.windDirection = np.pi/4
+        self.windTurbulence = 0.15 #std dev / mean
+        self.deltaTime = 0.01
+        self.sampleLength = 100 #if this is small (<10), the normalisation fails
+        self.frequency = 20 #Hz
+        self.U = self.windSpeed * np.cos(self.windDirection)
+        self.V = self.windSpeed * np.sin(self.windDirection)
+        self.sigma_u = self.U * self.windTurbulence
+        self.sigma_v = self.V * self.windTurbulence
+        self.sigma_w = 0.5
+        self.time_series = np.arange(0, self.sampleLength-self.deltaTime, self.deltaTime)
         #Planet Parameters
         self.earthMass = 5.97e24
         self.earthRadius = 6.36e6
@@ -53,7 +67,40 @@ class Environment:
         self.pressure = self.pressure * (1-lapseRate/288.15)**(self.g/(self.R*lapseRate)) #Pressure variation
         self.density = self.density * (1-lapseRate/288.15)**(self.g/(self.R*lapseRate)-1) #Density variation
 
+    # the spectral energy density of the wind velocity fluctuations - von Karman
+    def Su(self, h, f): #vertical
+        self.Lu = h * 3.281 / (0.177 + 0.000823 * h * 3.281) ** 1.2
+        return 4 * self.sigma_u ** 2 * self.Lu / self.U * (1 + 1.339 * (self.Lu * 2 * np.pi * f / self.U)) ** -5/3
+    
+    def Sv(self, h, f): #lateral
+        self.Lv = h * 1.6405 / (0.177 + 0.000823 * h * 3.281) ** 1.2
+        return 4 * self.sigma_v ** 2 * self.Lv / self.V * (1 + 8/3 * (2.678 * self.Lv * 2 * np.pi * f / self.U)) / ((1 + 2.678 * (self.Lv * 2 * np.pi * f / self.V)) ** 11/3)
+    
+    def Sw(self, h, f): #lateral
+        self.Lw = h * 1.6405
+        return 4 * self.sigma_w ** 2 * self.Lw / self.windSpeed * (1 + 8/3 * (2.678 * self.Lw * 2 * np.pi * f / self.U)) / ((1 + 2.678 * (self.Lw * 2 * np.pi * f / self.windSpeed)) ** 11/3)
 
-    def gust(self):
-        #Some form of sussy gust model here, prob from OpenRocket Documentation rn
-        amongus = 1
+    def wind(self, altitude):
+
+        #setup parameters
+        samples = int(self.sampleLength // self.deltaTime)
+        i = np.arange(samples)
+        f = i / (self.deltaTime * samples) / 20 #openRocket uses 20 Hz as the frequency
+
+        #compute wind speeds using inverse FFT
+        magnitude_u = samples * np.sqrt(self.Su(altitude, f))
+        magnitude_v = samples * np.sqrt(self.Sv(altitude, f))
+        magnitude_w = samples * np.sqrt(self.Sw(altitude, f))
+        phase = 2 * np.pi * np.random.randn(samples)
+        FFT_u = magnitude_u * np.exp(1j * phase)
+        FFT_v = magnitude_v * np.exp(1j * phase)
+        FFT_w = magnitude_w * np.exp(1j * phase)
+        self.Unu = np.real(np.fft.ifft(FFT_u))
+        self.Unv = np.real(np.fft.ifft(FFT_v))
+        self.Unw = np.real(np.fft.ifft(FFT_w))
+
+        # scale to match the mean and standard deviation
+        self.Unu = self.Unu * self.sigma_u / np.std(self.Unu) + self.U
+        self.Unv = self.Unv * self.sigma_v / np.std(self.Unv) + self.V
+        self.Unw = self.Unw * self.sigma_w / np.std(self.Unw)
+
