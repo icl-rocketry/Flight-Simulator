@@ -12,6 +12,7 @@ class Environment:
         pressure: Atmospheric pressure (Pa)
         density: Air density (kg/m^3)
         temperature: Atmospheric temperature (K)
+        viscosity: Air viscosity (Pa.s)
         ----------------------------------------------------------------------
         earthMass: Mass of Earth (kg)
         earthRadius: Radius of Earth (m)
@@ -28,6 +29,7 @@ class Environment:
         self.pressure = 101325
         self.density = 1.225
         self.temperature = 288.15
+        self.viscosity = 1.82e-5
 
         #Wind Parameters
         self.windSpeed = 8
@@ -42,6 +44,7 @@ class Environment:
         self.sigma_v = self.V * self.windTurbulence
         self.sigma_w = 0.5
         self.time_series = np.arange(0, self.sampleLength-self.deltaTime, self.deltaTime)
+
         #Planet Parameters
         self.earthMass = 5.97e24
         self.earthRadius = 6.36e6
@@ -51,7 +54,7 @@ class Environment:
         self.altitudeLast = 0
 
     def atmosphere(self, altitude):
-        #Basic ISA Atmospheric Model for now, assume constant g (geopotential)
+        #Basic ISA Atmospheric Model for now, assume constant g (geopotential) and ignore effects of humidity
         #Model ONLY applicable for troposphere 
         
         #Finding Lapse Rate (K/m)
@@ -63,20 +66,24 @@ class Environment:
         d_altitude = altitude - self.altitudeLast #Compute altitude difference
         self.altitudeLast = altitude #Store previous altitude
 
+        self.g = self.G * self.earthMass / ((self.earthRadius + altitude)**2)
+
         self.temperature -= lapseRate * d_altitude #Temperature variation
         self.pressure = self.pressure * (1-lapseRate/288.15)**(self.g/(self.R*lapseRate)) #Pressure variation
         self.density = self.density * (1-lapseRate/288.15)**(self.g/(self.R*lapseRate)-1) #Density variation
+        self.viscosity = 0.1456e-5 * np.sqrt(self.temperature) / (1 + 110/self.temperature) #Viscosity variation, Sutherland's law
+        self.a = np.sqrt(self.gamma * self.R * self.temperature) #Speed of sound variation
 
     # the spectral energy density of the wind velocity fluctuations - von Karman
-    def Su(self, h, f): #vertical
+    def Su(self, h, f): #Longitudinal
         self.Lu = h * 3.281 / (0.177 + 0.000823 * h * 3.281) ** 1.2
         return 4 * self.sigma_u ** 2 * self.Lu / self.U * (1 + 1.339 * (self.Lu * 2 * np.pi * f / self.U)) ** -5/3
     
-    def Sv(self, h, f): #lateral
+    def Sv(self, h, f): #Lateral
         self.Lv = h * 1.6405 / (0.177 + 0.000823 * h * 3.281) ** 1.2
         return 4 * self.sigma_v ** 2 * self.Lv / self.V * (1 + 8/3 * (2.678 * self.Lv * 2 * np.pi * f / self.U)) / ((1 + 2.678 * (self.Lv * 2 * np.pi * f / self.V)) ** 11/3)
     
-    def Sw(self, h, f): #lateral
+    def Sw(self, h, f): #Vertical
         self.Lw = h * 1.6405
         return 4 * self.sigma_w ** 2 * self.Lw / self.windSpeed * (1 + 8/3 * (2.678 * self.Lw * 2 * np.pi * f / self.U)) / ((1 + 2.678 * (self.Lw * 2 * np.pi * f / self.windSpeed)) ** 11/3)
 
@@ -104,3 +111,10 @@ class Environment:
         self.Unv = self.Unv * self.sigma_v / np.std(self.Unv) + self.V
         self.Unw = self.Unw * self.sigma_w / np.std(self.Unw)
 
+        #1. Generate pink noise sample as only low frequencies matter, to do so generate white noise sample and then apply filter
+
+        #2. Scale pinkNoise sample to standard deviation = 1, done by dividing value of standard deviation of the generated long unscaled pink noise sample
+
+        #3. Apply to Von Karman model for power spectral density
+
+        #4. Inverse fourier transform to become time series (wind velocity in 3 different directions)
