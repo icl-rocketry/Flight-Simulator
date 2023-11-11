@@ -1,14 +1,14 @@
 # general imports
 import numpy as np
 from matplotlib import pyplot as plt
-# forecasting API imports
+# forecasting API imports, download for new users
 import requests_cache
 import openmeteo_requests
 from retry_requests import retry
 
 
 class Environment:
-    def __init__(self):
+    def __init__(self,modelAtmo=False):
         """
         ----------------------------------------------------------------------
         a: Speed of sound (m/s)
@@ -54,13 +54,14 @@ class Environment:
         self.sampleLength = 2
         self.totalLength = 200
         self.userWind = False
-        self.modelAtmo = False
+        self.modelAtmo = modelAtmo
 
         # Wind Parameters
         self.windSpeed = 8  # at 10m altitude. TODO: allow for more complex user-defined wind models
         self.windDirection = 120
         self.turbulenceIntensity = 0.15  # typically 0.1-0.2
-        self.z1 = 532
+        self.z0 = 0.001
+        self.z1 = 1000 * (self.z0 ** 0.18)
 
         # Planet Parameters
         self.earthMass = 5.97e24

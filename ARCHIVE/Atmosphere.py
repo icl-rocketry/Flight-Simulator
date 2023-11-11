@@ -54,8 +54,8 @@ class Environment:
         self.altitudeLast = 0
 
     def atmosphere(self, altitude):
-        #Basic ISA Atmospheric Model for now, assume constant g (geopotential) and ignore effects of humidity
-        #Model ONLY applicable for troposphere 
+        #Basic ISA Atmospheric Model for now, ignore effects of humidity
+        #Model ONLY applicable for troposphere for now
         
         #Finding Lapse Rate (K/m)
         if altitude < 0:
@@ -111,10 +111,4 @@ class Environment:
         self.Unv = self.Unv * self.sigma_v / np.std(self.Unv) + self.V
         self.Unw = self.Unw * self.sigma_w / np.std(self.Unw)
 
-        #1. Generate pink noise sample as only low frequencies matter, to do so generate white noise sample and then apply filter
 
-        #2. Scale pinkNoise sample to standard deviation = 1, done by dividing value of standard deviation of the generated long unscaled pink noise sample
-
-        #3. Apply to Von Karman model for power spectral density
-
-        #4. Inverse fourier transform to become time series (wind velocity in 3 different directions)
