@@ -3,7 +3,6 @@ import boattail
 import noseCone
 import finSet
 
-
 class Rocket:
     def __init__(self, name):
         self.name = name
@@ -31,7 +30,7 @@ class Rocket:
         try:
             self.bodyTube = bodyTube(length, radius, thickness, material, self.noseCone.length)
         except AttributeError:
-            raise AttributeError("You need to add a nose cone first")
+            print("Body tube position could not be calculated. You need to add a nose cone first.")
 
     def addBoattail(self, length, upperRadius, lowerRadius, thickness, material):
         """
@@ -43,9 +42,10 @@ class Rocket:
         material: material of the boattail (CFRP, GFRP, Aluminum)
         """
         try:
-            self.boattail = boattail(length, upperRadius, lowerRadius, thickness, material, self.noseCone.length + self.bodyTube.length)
+            newLength = self.noseCone.length + self.bodyTube.length
+            self.boattail = boattail(length, upperRadius, lowerRadius, thickness, material, newLength)
         except AttributeError:
-            raise AttributeError("You need to add a nose cone and body tube first")
+            print("Boattail position could not be calculated. You need to add a nose cone and body tube first.")
 
     def addFinSet(self, span, rootChord, tipChord, sweep, thickness, material, rootLocation, aerofoil):
         """
@@ -60,6 +60,3 @@ class Rocket:
         aerofoil: aerofoil of the fin - 0 is a flat plate, otherwise it's a list of x,y coordinates
         """
         self.finSet = finSet(span, rootChord, tipChord, sweep, thickness, material, rootLocation, aerofoil)
-
-rocket = Rocket("Test Rocket")
-rocket.addBoattail(0.1, 0.1, 0.05, 0.001, "CFRP")

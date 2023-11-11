@@ -1,9 +1,10 @@
 import numpy as np
 
 class finSet:
-    def __init__(self, span, rootChord, tipChord, sweep, thickness, material, rootLocation, aerofoil):
+    def __init__(self, number, span, rootChord, tipChord, sweep, thickness, material, rootLocation, aerofoil):
         '''
         Parameters:
+        number: number of fins
         span: span of the fin
         rootChord: root chord of the fin
         tipChord: tip chord of the fin
@@ -13,6 +14,7 @@ class finSet:
         rootLocation: location of the root chord (from the nose cone)
         aerofoil: aerofoil of the fin - 0 is a flat plate, otherwise it's a list of x,y coordinates
         '''
+        self.number = number
         self.span = span
         self.rootChord = rootChord
         self.tipChord = tipChord
