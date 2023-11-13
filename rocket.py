@@ -1,7 +1,4 @@
-import bodyTube
-import boattail
-import noseCone
-import finSet
+from Components import bodyTube, boattail, noseCone, finSet
 
 class Rocket:
     def __init__(self, name):
@@ -60,3 +57,5 @@ class Rocket:
         aerofoil: aerofoil of the fin - 0 is a flat plate, otherwise it's a list of x,y coordinates
         """
         self.finSet = finSet(span, rootChord, tipChord, sweep, thickness, material, rootLocation, aerofoil)
+
+        # just so I remember, the extended part of Barrowman applies when combining parts, not to each part
