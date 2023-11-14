@@ -1,19 +1,21 @@
 import numpy as np
-from AeroSurfaces import NoseCone
+from AeroSurfaces import NoseCone, BoatTail
 
 class Rocket: 
     def __init__(self, rocketLength, rocketRadius):
         self.rocketLength = rocketLength # Say rocket is the body tube for now...
         self.rocketRadius = rocketRadius
         self.cpPosition = 0 # Position of CP
-
-        self.aerodynamicSurfaces = [] # Empty tuple that stores all components
+        self.cgPosition = 0 # Position of CG
 
         # Empty tuple that stores all components
+        self.aerodynamicSurfaces = []
 
         # Evaluate static margin without aero surfaces
         self.evaluateStaticMargin() 
 
+
+        self.drawPoint = 0 # Reference point for drawing to be done later
         return None
 
     def addSurfaces(self, surfaces, positions):
@@ -41,15 +43,22 @@ class Rocket:
         #Use Extended Barrowman here to evaluate CP
 
         pass
-
+    
+    def evaluateCG():
+        pass
 
     def addNose(self, type, length, radius, material):
         nose = NoseCone(self, type, length, radius, self.rocketRadius, material) # Set parameters for nose
         self.addSurfaces(nose, position=0) # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
         return nose
     
-    def addBowTail():
-        pass
+    def addBoatTail(self,upperRadius,lowerRadius,pos):
+        if pos < 0:
+            ValueError("BROOOOO") #Force thing to be placed in correct position
+
+        boatTail = BoatTail(self,upperRadius,lowerRadius,)
+        self.addSurfaces(boatTail,position=pos)
+        return boatTail
 
     def addFins():
         pass
