@@ -98,10 +98,10 @@ class Fins:
         self.span = span
         self.rootChord = rootChord
         self.tipChord = tipChord
-        self.sweep = sweep
+        self.sweep = sweep  # sweep on root chord only
         self.rootLocation = rootLocation
         self.number = number
-        self.rocketRadius = rocketRadius
+        self.rocketRadius = rocketRadius  # used in fin interference calcs
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
@@ -149,11 +149,50 @@ class Fins:
 
 
 class BodyTube:
-    pass
+    pass #do we really need this? Other than for the length which is used to determine the location of the remaining components
 
 
-class BoatTail:
-    pass
+class Boattail:
+    def __init__(self, upperRadius, lowerRadius, rocketRadius, length, topLocation): #conical only
+        self.upperRadius = upperRadius
+        self.lowerRadius = lowerRadius
+        self.rocketRadius = rocketRadius
+        self.length = length
+        self.topLocation
+
+        # Aerodynamic Parameters
+        # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
+        self.Cna = None
+        self.Xn = None
+        self.cp = None
+        self.cl = None
+        self.cd = None
+
+    def addBoattail(self):
+        # Note the position of the nose is @ top of rocket coordinate system
+
+        self.Cna = 2 * (self.upperRadius / self.rocketRadius) ** 2 * ((self.lowerRadius / self.upperRadius) ** 2 - 1)
+        self.Xn = ()*self.length + self.topLocation
+
+        self.geometricalParameters()  # Evaluate geometrical parameters of nose
+
+        self.evaluateCP()
+        self.evaluateCL()
+
+        # Drawing for later broooooooooooooooooo
+
+    def evaluateCP(self):
+        self.cpx = self.Xn
+        self.cpy = 0
+        self.cpz = 0
+        self.cp = (self.cpx, self.cpy, self.cpz)
+        return self.cp
+
+    def evaluateCL(self):
+        pass
+
+    def evaluateCD(self):
+        pass
 
 
 #
