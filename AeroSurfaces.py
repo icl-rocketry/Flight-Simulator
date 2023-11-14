@@ -13,6 +13,8 @@ class NoseCone():
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
+
+        ## test if branch works
         self.k = None
         self.cp = None
         self.cl = None
