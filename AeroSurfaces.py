@@ -13,8 +13,6 @@ class NoseCone():
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
-
-        ## test if branch works
         self.k = None
         self.cp = None
         self.cl = None
@@ -75,5 +73,25 @@ class NoseCone():
         )
         return None
 
-#     def evaluateCD(self):
+    def evaluateCD(self):
+        # Calculate clalpha
+        # clalpha is currently a constant, meaning it is independent of Mach
+        # number. This is only valid for subsonic speeds.
+        # It must be set as a Function because it will be called and treated
+        # as a function of mach in the simulation.
+        self.cdalpha = Function(
+            lambda mach: 2 * self.radius_ratio**2,
+            "Mach",
+            f"Drag coefficient derivative for {self.name}",
+        )
+        self.cd = Function(
+            lambda alpha, mach: self.clalpha(mach) * alpha,
+            ["Alpha (rad)", "Mach"],
+            "Cd",
+        )
+        return None
+    
+class Fins():
+
+    pass
 
