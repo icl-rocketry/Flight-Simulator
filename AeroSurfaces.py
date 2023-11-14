@@ -3,12 +3,13 @@ import numpy as np
 
 
 class NoseCone():
-    def __init__(self, type, length, noseRadius, rocketRadius):
+    def __init__(self, type, length, noseRadius, rocketRadius, shapeParameter):
         
         self.type = type
         self.noseLength = length
         self.noseRadius = noseRadius
         self.rocketRadius = rocketRadius
+        self.shapeParameter = shapeParameter
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
@@ -20,10 +21,17 @@ class NoseCone():
     def addNose(self):
     # Note the position of the nose is @ top of rocket coordinate system
 
-        if self.type == "VonKarman":    
-            self.k = 0.5
-        elif self.type == "Haack":
-            self.k = 0.437
+        # if self.type == "VonKarman":    
+        #     self.k = 0.5
+        if self.type == "Haack":
+            self.k = self.length / 2 * (1 - (3 * self.shapeParameter / 8))
+        elif self.type == "Ogive":
+            f = 1 / self.shapeParameter  # to be consistent with literature
+            lam = np.sqrt(2 * f - 1)
+            realOgiveXn = self.radius * ((f**2 - lam**2 / 3) * lam - f**2 * (f - 1) * np.arcsin(lam / f))
+            # the actual ogive might be squashed, so we need to scale it
+            realOgiveLength = np.sqrt((2 * lam + 1) * self.radius**2)
+            self.k = realOgiveXn * self.length / realOgiveLength
         else:
             raise ValueError("Cannot find nose type?")
         
