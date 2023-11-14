@@ -3,9 +3,9 @@ import numpy as np
 
 
 class NoseCone():
-    def __init__(self, type, length, noseRadius, rocketRadius, shapeParameter):
+    def __init__(self, coneType, length, noseRadius, rocketRadius, shapeParameter):
         
-        self.type = type
+        self.type = coneType
         self.noseLength = length
         self.noseRadius = noseRadius
         self.rocketRadius = rocketRadius
