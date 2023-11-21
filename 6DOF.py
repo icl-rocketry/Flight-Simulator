@@ -10,6 +10,7 @@
 import numpy as np
 import quaternion
 import matplotlib.pyplot as plt
+from Atmosphere2 import *
 
 # set default style
 plt.style.use("seaborn-v0_8")
@@ -30,11 +31,6 @@ Cd_cyl = 1.17  # for the drag resulting from the rotation
 radius = 0.06
 length = 2.51
 R_tank = 0.195
-windAngle = np.pi / 2  # heading of wind
-windSpeed = 4  # m/s
-gustAngle = np.pi / 3  # heading of gust (rad)
-gustSpeed = 2  # m/s
-gustFreq = 0.3  # Hz
 launchRailLength = 9  # m
 launchRailAngle = 5 * np.pi / 180  # rad
 launchRailDirection = np.pi / 2  # rad
@@ -131,13 +127,6 @@ def dragCoef(mach, alpha):  # TODO: with the new sim this can be calculated in a
     return Cd
 
 
-def windy(t):
-    """This function returns the wind velocity at a given time."""
-    return windSpeed * np.array([np.cos(windAngle), np.sin(windAngle), 0]) + gustSpeed * np.array(
-        [np.cos(gustAngle), np.sin(gustAngle), 0]
-    ) * (0.5 + 0.5 * np.cos(2 * np.pi * t * gustFreq))
-
-
 # main functions
 def recalculate(state, t, dt, initialCall):
     """This function returns the derivatives of the state vector which is input. This can then be used to solve the ODEs for the next time step.''
@@ -174,7 +163,15 @@ def recalculate(state, t, dt, initialCall):
     T = interpolate_thrust(t, thrust_data) * direction
     # Drag
     # wind
-    wind = windy(t)  # the wind velocity TODO: make this more realistic (gusts, direction, magnitude, etc.)
+    i = int(t/dt)
+    uWind, vWind = env.getUpperLevelWinds(r[2])  # get the wind at the current time
+    totalSpeed = np.sqrt(uWind**2 + vWind**2)
+    uWind = uWind + (turb[0][i] * totalSpeed)  # add turbulence
+    vWind = vWind + (turb[1][i] * totalSpeed)  # add turbulence
+    wWind = turb[2][i] * 0.1 * totalSpeed
+    wind = np.array([uWind, vWind, wWind])
+
+
     dr_wind = dr - wind
     # cross-sectional area, where alpha is the angle between rocket direction and velocity vector
     if np.dot(dr, direction) == 0:
@@ -286,7 +283,10 @@ def recalculate(state, t, dt, initialCall):
         T,
         L,
         I,
+        wind
     ]  # if we want to plot things not in the state vector, we can add them to this list
+
+    i += 1
     return newState, trackedValues
 
 
@@ -329,7 +329,14 @@ def main():
     # Simulation parameters
     dt = 0.04  # time step
     t = 0  # initial time
-    t_end = 1000  # end time
+    t_end = 100  # end time
+
+    #wind
+    global env
+    env = Environment()
+    env.getForecast()  # this must be done before the simulation starts - could do it in __init__
+    global turb
+    turb = env.getTurbulence(1000, t_end)
 
     # Simulation loop
     while t < t_end and state[2] > 0:
@@ -338,7 +345,6 @@ def main():
         t += dt
 
     # Plotting
-
     # create figure with 6 subplots
     fig, axs = plt.subplots(2, 4, constrained_layout=True)
     # plot x,y,z position all in one plot
@@ -459,6 +465,17 @@ def main():
 
     figManager = plt.get_current_fig_manager()
     figManager.window.showMaximized()
+    plt.show()
+
+    #plot the wind
+    plt.figure()
+    plt.plot([t for t in state_dict], [tracked_dict[t][16][0] for t in state_dict], label="u")
+    plt.plot([t for t in state_dict], [tracked_dict[t][16][1] for t in state_dict], label="v")
+    plt.plot([t for t in state_dict], [tracked_dict[t][16][2] for t in state_dict], label="w")
+    plt.xlabel("time (s)")
+    plt.ylabel("wind speed (m/s)")
+    plt.legend()
+    plt.grid(visible=True)
     plt.show()
 
     # animation! - TODO
