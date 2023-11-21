@@ -149,7 +149,10 @@ class Fins:
 
 
 class BodyTube:
-    pass #do we really need this? Other than for the length which is used to determine the location of the remaining components
+    def __init__(self, length):
+        self.length = length
+
+    # aero is not used here, only the length is used to determine the position of boattail
 
 
 class Boattail:
