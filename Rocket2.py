@@ -1,5 +1,5 @@
 import numpy as np
-from AeroSurfaces import NoseCone
+from AeroSurfaces import NoseCone, BodyTube, Boattail, Fins
 
 
 class Rocket:
