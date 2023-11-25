@@ -1,55 +1,104 @@
 import numpy as np
-from AeroSurfaces import NoseCone
+from AeroSurfaces import NoseCone, BoatTail, Fins
 
 class Rocket: 
     def __init__(self, rocketLength, rocketRadius):
-        self.rocketLength = rocketLength # Say rocket is the body tube for now...
+        """
+        rocketLength: 
+        rocketRadius
+        rocketCG: position of CG
+        rocketCP: position of CP
+        """
+
+        # Physical properties of rocket
+        self.rocketLength = rocketLength # Say rocket is the body tube for now... (on second thought, nahhhhhhhh)
         self.rocketRadius = rocketRadius
-        self.cpPosition = 0 # Position of CP
 
-        self.aerodynamicSurfaces = [] # Empty tuple that stores all components
+        self.rocketCP = 0
+        self.rocketCG = 0
 
-        # Empty tuple that stores all components
+        self.rocketCGPos = 0 # Position of CG
+        self.rocketCPPos = 0 # Position of CP
+        self.staticMargin = 0 # Static Margin
 
-        # Evaluate static margin without aero surfaces
-        self.evaluateStaticMargin() 
+        # Initialise list that stores aerodynamic coefficients for stability analysis
+        self.surfaceCP = []
+        self.surfaceCPPos = []
 
         return None
 
-    def addSurfaces(self, surfaces, positions):
-        """
-        Adds aero surfaces to rocket. However, the surface must be initialised first by using the commands below
+    def addSurface(self, cp, cpPos):
 
-        surfaces [list]
-        position [list, noseToTail coordinate system]
-        """
         try:
-            for surface, position in zip(surfaces, positions):
-                self.aerodynamicSurfaces.append(surface, position)
+            self.surfaceCP.append(cp)
+            self.surfaceCPPos.append(cpPos)
+
         except TypeError:
-            self.aerodynamicSurfaces.append(surfaces, positions)
+            self.surfaceCP.append(cp)
+            self.surfaceCPPos.append(cpPos)
 
         # Re-evalute static margin with nose cone
         self.evaluateStaticMargin() 
 
         return None
     
-    def evaluateStaticMargin():
+    def evaluateStaticMargin(self):
+        """
+        This shit not working
+        """
         # For each cp (which is calculated within the component class and position argument for each component, calcalte total cp and its final positon)
         # Maybe the same for cg?
 
         #Use Extended Barrowman here to evaluate CP
+        self.evaluateRocketCP()
+        self.evaluateRocketCG()
 
+        self.staticMargin = (self.rocketCP - self.rocketCG)/(2*self.rocketRadius) # in calibers
+
+        return None
+    
+    def evaluateRocketCP(self):
+        try:
+            for coeff, pos in zip(self.surfaceCP,self.surfaceCPPos):
+                cpTop = coeff*pos
+
+        except TypeError:
+            for coeff, pos in zip(self.surfaceCP,self.surfaceCPPos):
+                cpTop = coeff*pos
+
+        self.rocketCP = sum(self.surfaceCPPos)
+        self.rocketCPPos = cpTop/self.rocketCP
+
+
+    def evaluateRocketCG(self):
         pass
 
 
-    def addNose(self, type, length, radius, material):
-        nose = NoseCone(self, type, length, radius, self.rocketRadius, material) # Set parameters for nose
-        self.addSurfaces(nose, position=0) # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
+    # ADD AERODYNAMIC SURFACES #
+
+    def addNose(self, type, length, noseRadius, *material):
+        """
+        Adds nose cone to rocket
+
+        """
+        nose = NoseCone(type, length, noseRadius, self.rocketRadius, material) # Set parameters for nose
+        nose.add() # Initialise design parameters associated with nose
+        self.addSurface(nose.cn, nose.cnPos) # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
         return nose
     
-    def addBowTail():
-        pass
+    def addBoatTail(self, upperRadius, lowerRadius, length, radius, pos):
+        if pos < 0:
+            ValueError("BROOOOO") #Force thing to be placed in correct position
+
+        boatTail = BoatTail(upperRadius, lowerRadius, length, radius, pos)
+        boatTail.add() # Initialise design parameters associated with boat tail
+        #self.addSurface(boatTail.cn,boatTail.cnPos)
+        return boatTail
 
     def addFins():
+
         pass
+
+    def clear(self):
+        # Clear all aerodynamic surfaces on rocket, could potentially be used for housekeeping
+        self.aerodynamicSurfaces.clear()
