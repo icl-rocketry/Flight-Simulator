@@ -13,7 +13,7 @@ class NoseCone:
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
-        self.Cna = 2  # doesn't need evaluating, it is 2 by default for a nosecone
+        self.Cna = None
         self.Xn = None
         self.cp = None
         self.cl = None
@@ -24,13 +24,14 @@ class NoseCone:
 
         # if self.type == "VonKarman":
         #     self.Xn = 0.5
+        self.Cna = 2 * (self.noseRadius / self.rocketRadius) ** 2 # is this correct?
         if self.type == "Haack":
             self.Xn = self.length / 2 * (1 - (3 * self.shapeParameter / 8))
         elif self.type == "Ogive":
             f = 1 / self.shapeParameter  # to be consistent with literature
             lam = np.sqrt(2 * f - 1)
             realOgiveXn = self.radius * ((f**2 - lam**2 / 3) * lam - f**2 * (f - 1) * np.arcsin(lam / f))
-            # the actual ogive might be squashed, so we need to scale it
+            # the actual ogive might be squashed since the length can be changed, so we need to scale it
             realOgiveLength = np.sqrt((2 * lam + 1) * self.radius**2)
             self.Xn = realOgiveXn * self.length / realOgiveLength
         else:
@@ -156,7 +157,7 @@ class BodyTube:
 
 
 class Boattail:
-    def __init__(self, upperRadius, lowerRadius, rocketRadius, length, topLocation): #conical only
+    def __init__(self, upperRadius, lowerRadius, rocketRadius, length, topLocation):  # conical only
         self.upperRadius = upperRadius
         self.lowerRadius = lowerRadius
         self.rocketRadius = rocketRadius
@@ -175,7 +176,10 @@ class Boattail:
         # Note the position of the nose is @ top of rocket coordinate system
 
         self.Cna = 2 * (self.upperRadius / self.rocketRadius) ** 2 * ((self.lowerRadius / self.upperRadius) ** 2 - 1)
-        self.Xn = ()*self.length + self.topLocation
+        self.Xn = (
+            (1 / 3)
+            * (1 + (1 - (self.upperRadius / self.lowerRadius)) / (1 - (self.upperRadius / self.lowerRadius) ** 2))
+        ) * self.length + self.topLocation
 
         self.geometricalParameters()  # Evaluate geometrical parameters of nose
 

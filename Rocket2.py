@@ -17,41 +17,53 @@ class Rocket:
 
         return None
 
-    def addSurfaces(self, surfaces, positions):
-        """
-        Adds aero surfaces to rocket. However, the surface must be initialised first by using the commands below
+    # def addSurfaces(self, surfaces, positions):
+    #     """
+    #     Adds aero surfaces to rocket. However, the surface must be initialised first by using the commands below
 
-        surfaces [list]
-        position [list, noseToTail coordinate system]
-        """
-        try:
-            for surface, position in zip(surfaces, positions):
-                self.aerodynamicSurfaces.append(surface, position)
-        except TypeError:
-            self.aerodynamicSurfaces.append(surfaces, positions)
+    #     surfaces [list]
+    #     position [list, noseToTail coordinate system]
+    #     """
+    #     try:
+    #         for surface, position in zip(surfaces, positions):
+    #             self.aerodynamicSurfaces.append(surface, position)
+    #     except TypeError:
+    #         self.aerodynamicSurfaces.append(surfaces, positions)
 
-        # Re-evalute static margin with nose cone
-        self.evaluateStaticMargin()
+    #     # Re-evalute static margin with nose cone
+    #     self.evaluateStaticMargin()
 
-        return None
+    #     return None
+    
+    def evaluateCG(self):
+        pass #this must be done before evaluating the static margin as the cg is required
 
-    def evaluateStaticMargin():
+    def evaluateStaticMargin(self):
         # For each cp (which is calculated within the component class and position argument for each component, calcalte total cp and its final positon)
-        # Maybe the same for cg?
-
-        # Use Extended Barrowman here to evaluate CP
+        total = 0
+        for surface in self.aerodynamicSurfaces:
+            Cna = surface.Cna
+            Xn = surface.Xn
+            total += Cna * Xn
+            totalCna += Cna
+        self.cpPosition = total / totalCna
+        self.staticMargin = (self.cpPosition - self.cgPosition) / (2 * self.rocketRadius)
 
         pass
 
-    def addNose(self, type, length, radius, material):
-        nose = NoseCone(self, type, length, radius, self.rocketRadius, material)  # Set parameters for nose
+    def addNose(self, coneType, length, radius, material):
+        nose = NoseCone(self, coneType, length, radius, self.rocketRadius, material)  # Set parameters for nose
         self.addSurfaces(
             nose, position=0
         )  # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
+        self.aerodynamicSurfaces.append(nose)
         return nose
 
-    def addBowTail():
-        pass
+    def addBoattail(self, upperRadius, lowerRadius, length, topLocation):
+        boattail = Boattail(self, upperRadius, lowerRadius, rocketRadius, length, topLocation)
+        self.addSurfaces(boattail, position=0)
+        self.aerodynamicSurfaces.append(boattail)
+        return boattail
 
-    def addFins():
+    def addFins(self):
         pass

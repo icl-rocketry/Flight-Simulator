@@ -11,6 +11,7 @@ import numpy as np
 import quaternion
 import matplotlib.pyplot as plt
 from Atmosphere2 import *
+from Rocket2 import *
 
 # set default style
 plt.style.use("seaborn-v0_8")
@@ -104,12 +105,16 @@ def gravity(h):
     return g0 * ((6371000 / (6371000 + h)) ** 2)
 
 
-def CoP(mach):  # TODO: with the new sim this can be calculated in a less dodgy way
+def CoP(Rocket, mach, alpha):  # TODO: with the new sim this can be calculated in a less dodgy way
     """This function returns the distance from the thrust vector to the pressure vector."""
-    CoP = length - (1.83 + mach / 20)
-    if mach < 0.25:
-        CoP = length - 1.8425 - 0.25 * (0.25 - mach)
-    return CoP  # crude approximation from openrocket sims
+    # OLD CODE:
+    # CoP = length - (1.83 + mach / 20)
+    # if mach < 0.25:
+    #     CoP = length - 1.8425 - 0.25 * (0.25 - mach)
+    # return CoP  # crude approximation from openrocket sims
+    # NEW CODE (using the Rocket class):
+    
+
 
 
 def dragCoef(mach, alpha):  # TODO: with the new sim this can be calculated in a less dodgy way
