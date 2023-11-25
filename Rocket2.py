@@ -1,5 +1,6 @@
 import numpy as np
 from AeroSurfaces import NoseCone, BoatTail, Fins
+import Materials
 
 class Rocket: 
     def __init__(self, rocketLength, rocketRadius):
@@ -22,7 +23,7 @@ class Rocket:
         self.staticMargin = 0 # Static Margin
 
         # Initialise list that stores aerodynamic coefficients for stability analysis
-        self.surfaceCP = []
+        self.surfaceCN = []
         self.surfaceCPPos = []
 
         return None
@@ -30,11 +31,11 @@ class Rocket:
     def addSurface(self, cp, cpPos):
 
         try:
-            self.surfaceCP.append(cp)
+            self.surfaceCN.append(cp)
             self.surfaceCPPos.append(cpPos)
 
         except TypeError:
-            self.surfaceCP.append(cp)
+            self.surfaceCN.append(cp)
             self.surfaceCPPos.append(cpPos)
 
         # Re-evalute static margin with nose cone
@@ -53,20 +54,20 @@ class Rocket:
         self.evaluateRocketCP()
         self.evaluateRocketCG()
 
-        self.staticMargin = (self.rocketCP - self.rocketCG)/(2*self.rocketRadius) # in calibers
+        self.staticMargin = (self.rocketCPPos - self.rocketCG)/(2*self.rocketRadius) # in calibers
 
         return None
     
     def evaluateRocketCP(self):
         try:
-            for coeff, pos in zip(self.surfaceCP,self.surfaceCPPos):
-                cpTop = coeff*pos
+            for coeff, pos in zip(self.surfaceCN,self.surfaceCPPos):
+                cpTop += coeff*pos
 
         except TypeError:
-            for coeff, pos in zip(self.surfaceCP,self.surfaceCPPos):
-                cpTop = coeff*pos
+            for coeff, pos in zip(self.surfaceCN,self.surfaceCPPos):
+                cpTop += coeff*pos
 
-        self.rocketCP = sum(self.surfaceCPPos)
+        self.rocketCN = sum(self.surfaceCPPos)
         self.rocketCPPos = cpTop/self.rocketCP
 
 
@@ -76,7 +77,7 @@ class Rocket:
 
     # ADD AERODYNAMIC SURFACES #
 
-    def addNose(self, type, length, noseRadius, *material):
+    def addNose(self, type, length, noseRadius, material):
         """
         Adds nose cone to rocket
 
@@ -86,6 +87,9 @@ class Rocket:
         self.addSurface(nose.cn, nose.cnPos) # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
         return nose
     
+    def addBodyTube(self):
+        pass
+
     def addBoatTail(self, upperRadius, lowerRadius, length, radius, pos):
         if pos < 0:
             ValueError("BROOOOO") #Force thing to be placed in correct position
