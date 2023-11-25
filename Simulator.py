@@ -4,7 +4,8 @@ import numpy as np
 
 if __name__ == "__main__":
     nimbussy = r.Rocket(5,20)
-    nose = nimbussy.addNose("VonKarman",10, nimbussy.rocketRadius, nimbussy.rocketRadius)
+    nose = nimbussy.addNose("VonKarman",10, nimbussy.rocketRadius, nimbussy.rocketRadius,"CFRP")
+    bodyTube = nimbussy.addBodyTube()
     #boatTail = nimbussy.addBoatTail(10,2,10,nimbussy.rocketRadius,200)
     print(nose.cn)
     print(nose.cnPos)

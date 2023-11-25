@@ -1,5 +1,6 @@
 # General Imports, method is same as RocketPy coz it is neat code
 import numpy as np
+import Materials as mat
 from function import Function
 
 # NOSE CONE #
@@ -8,6 +9,8 @@ class NoseCone():
         """
         type: type of nose cone
         noseLength: length of nose cone (m)
+        noseRadius:
+        rocketRadius:
         """   
 
         # Nose Cone Design Parameters
@@ -15,6 +18,11 @@ class NoseCone():
         self.noseLength = length
         self.noseRadius = noseRadius
         self.rocketRadius = rocketRadius
+
+        # Physical Parameters
+        self.noseMaterial = material
+        self.volume = None 
+        self.mass = None
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
@@ -50,11 +58,16 @@ class NoseCone():
             self.radiusRatio = 1
         else:
             self.radiusRatio = self.noseRadius/self.rocketRadius
+
+        # Find volume -> find mass
+        self.mass = mat.Materials(self.noseMaterial).density * self.volume
         
+
     def evaluateCN(self):
         self.cn = Function(lambda alpha: 2*alpha) # Note cnAlpha = 2 for all nose cones because I said so
         self.cnPos = self.k * self.noseLength
     
+
     def evaluateCL(self):
         # Calculate clalpha
         # clalpha is currently a constant, meaning it is independent of Mach
@@ -142,8 +155,8 @@ class Fins():
         ----------------------------------------------------------------------
         numberOfFins: number of fins ()
         finType: geometry of fins ()
-        finSpan: span of fins ()
-
+        finSpan: span of fins (m)
+        ----------------------------------------------------------------------
         """
         # Physical parameters
         self.numberOfFins = n
@@ -158,7 +171,7 @@ class Fins():
         # Aerodynamic parameters
         self.kfb = None # Factor for interference between fin and body
         self.cn = None
-        self.cpPos = None
+        self.cnPos = None
         self.cl = None
         self.cd = None
 
@@ -186,7 +199,8 @@ class Fins():
             raise ValueError("Nose cone not defined yet")
         
         self.cn = Function(lambda alpha: self.cnAlpha * alpha) #Assume small angles
-        self.cpPos = (self.pos + 
+        
+        self.cnPos = (self.pos + 
                       self.finMidChord*(self.finRootChord+2*self.finTipChord)
                         /(3*(self.finRootChord+self.finTipChord))
                           +(self.finRootChord+self.finTipChord
