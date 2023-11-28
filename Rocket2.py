@@ -12,10 +12,10 @@ class Rocket:
         rocketCPPos: Position of CP on rocket @ alpha = 0 (m)
         staticMargin: Static Margin of rocket (calibers)
         ----------------------------------------------------------------------
-        surfaceCN:  
-        surfaceCNPos:
-        surfaceMass:
-        surfaceCG:
+        surfaceCN []: Array of Normal Coefficients of each surface
+        surfaceCNPos []: Array of Normal Coefficients of each surface
+        surfaceMass []: Array of Normal Coefficients of each surface
+        surfaceCG []: Array of Normal Coefficients of each surface
         ----------------------------------------------------------------------
         """
 
@@ -37,6 +37,7 @@ class Rocket:
         # Booleans to check if one surface has been inputted?
         self.noseAdded = False
         self.bodyTubeAdded = False
+        self.boatTailAdded = False
 
         # Checkers to check whether input is valid
         isTooLong = 0 # Variable that computes total length of components
@@ -66,7 +67,7 @@ class Rocket:
     
     def evaluateStaticMargin(self):
         """
-        This shit not working
+        Stability analysis by first evaluating the overall position of CG and CP, then evaluate static margin
         """
         # For each cp (which is calculated within the component class and position argument for each component, calcalte total cp and its final positon)
         # Maybe the same for cg?
@@ -75,12 +76,17 @@ class Rocket:
         self.evaluateRocketCP()
         self.evaluateRocketCG()
 
-        self.staticMargin = (self.rocketCPPos - self.rocketCGPos)/(2*self.rocketRadius) # in calibers
+        self.staticMargin = (self.rocketCPPos - self.rocketCGPos)/(2*self.rocketRadius)
 
         return None
     
     def evaluateRocketCP(self):
+        """
+        Evaluates centre of pressure of rocket
+        """
+
         cpTop = 0 # Initialise cpTop variable
+
         try:
             for coeff, pos in zip(self.surfaceCG,self.surfaceCNPos):
                 cpTop += coeff*pos
@@ -89,20 +95,29 @@ class Rocket:
             for coeff, pos in zip(self.surfaceCN,self.surfaceCNPos):
                 cpTop += coeff*pos
 
-        self.rocketCPPos = cpTop/sum(self.surfaceCN)
+        # In the odd case where there are no existing aero surfaces initialsied on rocket...
+        if sum(self.surfaceCN) == None:
+            self.rocketCPPos = 0
+        else:
+            self.rocketCPPos = cpTop/sum(self.surfaceCN)
 
 
     def evaluateRocketCG(self):
+        """
+        Evaluates centre of gravity of rocket
+        """
+
         cgTop = 0
+
         try:
             for coeff, pos in zip(self.surfaceMass,self.surfaceCG):
                 cgTop += coeff*pos
 
         except TypeError:
             for coeff, pos in zip(self.surfaceMass,self.surfaceCG):
-                cpTop += coeff*pos
+                cgTop += coeff*pos
         
-        self.rocketCGPos = cpTop/sum(self.surfaceMass)
+        self.rocketCGPos = cgTop/sum(self.surfaceMass)
 
 
     ### ADD AERODYNAMIC SURFACES ###
@@ -121,6 +136,7 @@ class Rocket:
 
         return nose
     
+
     def addBodyTube(self, length, radius, thickness, material):
         """
         Adds body tube to rocket
@@ -138,6 +154,7 @@ class Rocket:
 
         return bodyTube
 
+
     def addBoatTail(self, upperRadius, lowerRadius, length, thickness, boatTailPos, material):
         """
         Adds boat tail to rocket
@@ -154,6 +171,7 @@ class Rocket:
 
         return boatTail
 
+
     def addFins():
         """
         Adds fins to rocket
@@ -163,9 +181,21 @@ class Rocket:
         
         return fins
 
+
+    ### OTHER FUNKY FUNCTIONS ###
+
     def clear(self):
+        """
+        The odd case where the user wants to delete all surfaces
+        """
         # Clear all aerodynamic surfaces on rocket, could potentially be used for housekeeping
         self.aerodynamicSurfaces.clear()
+
+        # Reset all centres
+        self.rocketCGPos = 0 
+        self.rocketCPPos = 0 
+
+        return None
 
 
     ### Data Validation ###

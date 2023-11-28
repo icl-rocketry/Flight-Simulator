@@ -1,4 +1,4 @@
-# General Imports, method is same as RocketPy coz it is neat code
+# General Imports, method is similar to RocketPy coz it is neat code
 import numpy as np
 import Materials as mat
 from function import Function
@@ -10,8 +10,7 @@ from function import Function
 # POSITION, FORCE FOR NOW, SO USE ISTOOLONG VARIABLE
 
 
-
-# NOSE CONE #
+### NOSE CONE ###
 class NoseCone():
     def __init__(self, coneType, length, noseRadius, rocketRadius, material, thickness):
         """
@@ -21,9 +20,23 @@ class NoseCone():
         noseRadius: Radius of nose cone (m)
         thickness: Thickness of nose cone (m)
         rocketRadius: Radius of rocket (m)
+        ----------------------------------------------------------------------
         noseMaterial: Material of nose cone (string)
+        volume: Volume of nose (m^3)
+        mass: Mass of nose (kg)
+        ----------------------------------------------------------------------
+        k: Length factor used to determine the position of CP of nose cone ()
+        (k2): Not sure what this does yet... 
+        cn: Normal coefficient of nose ()
+        cl: Lift coefficient of nose ()
+        cd: Drag coefficient of nose ()
+        ----------------------------------------------------------------------
+        cnPos: Position of CP of nose, relative to entire rocket body (m)
+        cgPos: Position of CG of nose, relative to entire rocket body (m)
         ----------------------------------------------------------------------
         """   
+
+        #NOTE: Nose cone is automatically positioned @ top of rocket (i.e. pos = 0)
 
         # Nose Cone Design Parameters
         self.type = coneType
@@ -45,11 +58,11 @@ class NoseCone():
         self.cl = None
         self.cd = None
 
+        # Stability Parameters
         self.cnPos = 0
         self.cgPos = 0
 
     def add(self):
-    # Note the position of the nose is @ top of rocket coordinate system
 
         if self.type.lower() == "vonkarman":    
             self.k = 0.5
@@ -60,20 +73,17 @@ class NoseCone():
         else:
             raise ValueError("Cannot find nose type?")
         
+        self.evaluateMass()
         self.geometricalParameters() # Evaluate geometrical parameters of nose
-        
         self.evaluateCN()
         self.evaluateCL()
-        
-        # Delegate drawing to 1st year
+
 
     def geometricalParameters(self): # Finding rho, the radius ratio of nose cone
         if self.noseRadius is None or self.rocketRadius is None:
             self.radiusRatio = 1
         else:
             self.radiusRatio = self.noseRadius/self.rocketRadius
-
-        self.mass = mat.Materials(self.noseMaterial).density*1000*self.volume # Finding mass
         
 
     def evaluateCN(self):
@@ -96,14 +106,22 @@ class NoseCone():
             )
         
         return None
-    
 
     def evaluateCD(self):
         pass
 
 
+    def evaluateMass(self):
+        self.mass = mat.Materials(self.noseMaterial).density*1000*self.volume
 
-# BODY TUBE #
+
+    def drawNoseCone(self):
+        # FIRST YEAR JOB
+        pass
+
+
+
+### BODY TUBE ###
 class BodyTube():
     def __init__(self, bodyTubeLength, bodyTubeRadius, thickness, material):
         """
@@ -145,9 +163,13 @@ class BodyTube():
         pass
 
 
-# BOAT TAIL #
+### BOAT TAIL ###
 class BoatTail():
     def __init__(self, upperRadius, lowerRadius, length, rocketRadius, thickness, boatTailPos, material):
+        """
+        """
+
+        #NOTE: Boattail is modelled as a conical transition
 
         # Initial Arguments
         self.startRadius = upperRadius
@@ -183,21 +205,21 @@ class BoatTail():
 
     def evaluateMass(self):
         self.volume = np.pi*self.length/(3*self.startRadius) * (self.startRadius**3-self.endRadius**3) - np.pi*self.length/(3*(self.startRadius-self.boatTailThickness)) * ((self.startRadius-self.boatTailThickness)**3-(self.endRadius-self.boatTailThickness)**3)
-        self.mass = self.volume * mat.Materials(self.boatTailMaterial)
+        self.mass = self.volume * mat.Materials(self.boatTailMaterial).density
 
     def drawBoatTail(self):
         # FIRST YEAR JOB
         pass
     
 
-# FINS # 
+### FINS ### 
 class Fins():
     def __init__(self, finType, n, finSpan, finRootChord, finMidChord, finTipChord, rocketRadius, pos):
         # [IMPORTANT] See how there are geometric parameters defined for trapezoidal fins ONLY, this should be moved to a separate function in the near future
         # i.e. addTrapezoidalFins(self, finSpanm finRootChord...) instead of initialising these geometric parameters in the fins class itself 
         """
         ----------------------------------------------------------------------
-        numberOfFins: number of fins ()
+        numberOfFins: Number of fins ()
         finType: geometry of fins ()
         finSpan: span of fins (m)
         ----------------------------------------------------------------------
@@ -254,6 +276,8 @@ class Fins():
                       /6
                     )
 
+    def evaluateCL(self):
+        pass
 
     def evaluateCD(self):
         self.cd = 0
