@@ -3,7 +3,7 @@ import numpy as np
 class Materials:
     def __init__(self,type):
         """
-        materialType: Material Name
+        materialType: Material name
         density: Density of material (kg/m^3)
         youngModulus: Young Modulus of material (Pa)
         """
@@ -18,12 +18,12 @@ class Materials:
     # Set properties of material dependent on type
     def setProperties(self):
         if self.materialType.lower() == "cfrp":
-            self.density = 0
-            self.youngsModulus = 0
+            self.density = 1.27 # g/cm^3
+            self.youngsModulus = 43.9 # GPa
         elif self.materialType.lower() == "gfrp":
-            self.density = 0
-            self.youngsModulus = 0
+            self.density = 0.4/0.3 # kgsm (/thickness = 0.3)
+            self.youngsModulus = 72.5 # GPa
         else:
-            raise ValueError("Mateiral Not Found")
+            raise ValueError("Material Not Found")
     
 

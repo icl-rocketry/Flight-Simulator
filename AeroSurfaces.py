@@ -3,20 +3,33 @@ import numpy as np
 import Materials as mat
 from function import Function
 
+# ADD MASS OVERRIDE OPTION 
+# METHOD 1: ARGUMENT = 0 OR 1 FOR MASS MODE (MASSOVERRIDE = 1)
+# METHOD 2: KEYWORD ARGUMENT (DEFAULT VALUE I.E. MASS=100, IF NO VALUE GIVEN THEN USE MASS FUNCTION)
+
+# POSITION, FORCE FOR NOW, SO USE ISTOOLONG VARIABLE
+
+
+
 # NOSE CONE #
 class NoseCone():
-    def __init__(self, coneType, length, noseRadius, rocketRadius, material):
+    def __init__(self, coneType, length, noseRadius, rocketRadius, material, thickness):
         """
-        type: type of nose cone
-        noseLength: length of nose cone (m)
-        noseRadius:
-        rocketRadius:
+        ----------------------------------------------------------------------
+        type: Type of nose cone (string)
+        noseLength: Length of nose cone (m)
+        noseRadius: Radius of nose cone (m)
+        thickness: Thickness of nose cone (m)
+        rocketRadius: Radius of rocket (m)
+        noseMaterial: Material of nose cone (string)
+        ----------------------------------------------------------------------
         """   
 
         # Nose Cone Design Parameters
         self.type = coneType
         self.noseLength = length
         self.noseRadius = noseRadius
+        self.thickness = thickness
         self.rocketRadius = rocketRadius
 
         # Physical Parameters
@@ -32,17 +45,18 @@ class NoseCone():
         self.cl = None
         self.cd = None
 
-        self.cnPos = None
+        self.cnPos = 0
+        self.cgPos = 0
 
     def add(self):
     # Note the position of the nose is @ top of rocket coordinate system
 
         if self.type.lower() == "vonkarman":    
             self.k = 0.5
-            self.k2 = 0.6
+            self.volume = self.noseLength * np.pi/ 2 * (9/8) * (self.noseRadius**2-(self.noseRadius-self.thickness)**2)
         elif self.type.lower() == "haack":
             self.k = 0.437
-            self.k2 = 0.6
+            self.volume = (np.pi*self.noseLength/2) * ((self.noseRadius**2) - (self.noseRadius-self.thickness)**2)
         else:
             raise ValueError("Cannot find nose type?")
         
@@ -51,7 +65,7 @@ class NoseCone():
         self.evaluateCN()
         self.evaluateCL()
         
-        # Drawing for later broooooooooooooooooo
+        # Delegate drawing to 1st year
 
     def geometricalParameters(self): # Finding rho, the radius ratio of nose cone
         if self.noseRadius is None or self.rocketRadius is None:
@@ -59,8 +73,7 @@ class NoseCone():
         else:
             self.radiusRatio = self.noseRadius/self.rocketRadius
 
-        # Find volume -> find mass
-        self.mass = mat.Materials(self.noseMaterial).density * self.volume
+        self.mass = mat.Materials(self.noseMaterial).density*1000*self.volume # Finding mass
         
 
     def evaluateCN(self):
@@ -79,29 +92,62 @@ class NoseCone():
             lambda mach: 2 * self.radius_ratio**2
             )
         self.cl = Function(
-            lambda alpha, mach: self.clalpha(mach) * alpha
+            lambda alpha, mach: self.clAlpha(mach) * alpha
             )
         
         return None
+    
 
-#     def evaluateCD(self):
+    def evaluateCD(self):
+        pass
+
+
 
 # BODY TUBE #
-class bodyTube():
-    def __init__(self, bodyTubeLength, bodyTubeRadius):
-        self.bodyTubeLength = bodyTubeLength
-        self.bodyTubeRadius = bodyTubeRadius
+class BodyTube():
+    def __init__(self, bodyTubeLength, bodyTubeRadius, thickness, material):
+        """
+        ----------------------------------------------------------------------
+        bodyTubeLength: Length of body tube (m)
+        bodyTubeRadius: Radius of body tube (m)
+        bodyTubeThickness: Thickness of body tube (m)
+        ----------------------------------------------------------------------
 
-        self.cn = None
-        self.cnPos = None
+        ----------------------------------------------------------------------
+        """
+        self.bodyTubeLength = bodyTubeLength
+        self.bodyTubeRadius = bodyTubeRadius # Assume cylindrical tube
+        self.bodyTubeThickness = thickness
+
+        # Physical parameters of body tube
+        self.bodyTubeMaterial = material
+        self.volume = 0
+        self.mass = 0
+
+        # Aerodynamic parameters
+        self.cn = 0 # Cn of body tube = 0 (someone verify this please)
+        self.cnPos = 0
+        self.cgPos = 0 # In the future, use Fusion API (have wet and dry CG)
 
     def add(self):
+        self.evaluateMass()
+        self.evaluateCN()
+
+    def evaluateMass(self):
+        self.volume = np.pi*(self.bodyTubeRadius**2-(self.bodyTubeRadius-self.bodyTubeThickness)**2)*self.bodyTubeLength
+        self.mass = mat.Materials(self.bodyTubeMaterial).density*1000*self.volume
+
+    def evaluateCN(self):
+        self.cnPos = 0.5 * self.bodyTubeLength # note this is relative to the body tube, not the entire rocket, need to change this!
+
+    def drawBodyTube(self):
+        # FIRST YEAR JOB
         pass
 
 
 # BOAT TAIL #
 class BoatTail():
-    def __init__(self, upperRadius, lowerRadius, length, rocketRadius, boatTailPos):
+    def __init__(self, upperRadius, lowerRadius, length, rocketRadius, thickness, boatTailPos, material):
 
         # Initial Arguments
         self.startRadius = upperRadius
@@ -115,35 +161,33 @@ class BoatTail():
         self.cl = None
         self.cd = None
 
-        self.cnPos = None
+        self.cnPos = 0
+        self.cgPos = 0
 
+        # Physical parameters of boat tail
+        self.boatTailMaterial = material
+        self.boatTailThickness = thickness
+        self.volume = None
+        self.mass = None
     
     def add(self):
-
-        # Evaluate Cn and its position
-        self.evaluateCN()
-
-
+        self.evaluateCN() # Evaluate Cn and its position
+        self.evaluateMass() # Evaluate mass of boat tail
 
     def evaluateCN(self):
         # Sanity check, a boat tail should have a negative CP, hence pushing the total CP forward
-        # No CP solution found yet, so for now just find CN and then ue barrowman to find overall cp position, isnt this the usual way?
-        # Note only trapezoidal/linear boattail for now
-
         dRatio = self.rocketRadius/self.endRadius
 
-        self.cn = 2*((self.endRadius/self.rocketRadius)**2 - (self.startRadius/self.rocketRadius)**2)
+        self.cn = 2*((self.endRadius/self.rocketRadius)**2 - (self.startRadius/self.rocketRadius)**2) # Modelling boat tail as body tube transition
         self.cnPos = self.boatTailPos + self.length/3 * (1+(1-dRatio)/(1-dRatio**2))
 
-
+    def evaluateMass(self):
+        self.volume = np.pi*self.length/(3*self.startRadius) * (self.startRadius**3-self.endRadius**3) - np.pi*self.length/(3*(self.startRadius-self.boatTailThickness)) * ((self.startRadius-self.boatTailThickness)**3-(self.endRadius-self.boatTailThickness)**3)
+        self.mass = self.volume * mat.Materials(self.boatTailMaterial)
 
     def drawBoatTail(self):
-        n = 127 # number of points used to plot boat tail
-        ymax = self.startRadius / 2 
-        ymin = self.endRadius / 2
-        m = (ymax-ymin)/ self.length    # gradient of line
-
-        return [xBTPoints,yBTPoints]
+        # FIRST YEAR JOB
+        pass
     
 
 # FINS # 
@@ -166,6 +210,7 @@ class Fins():
         self.finMidChord = finMidChord
         self.finTipChord = finTipChord
 
+        # Rocket parameters
         self.rocketRadius = rocketRadius
 
         # Aerodynamic parameters
@@ -199,7 +244,7 @@ class Fins():
             raise ValueError("Nose cone not defined yet")
         
         self.cn = Function(lambda alpha: self.cnAlpha * alpha) #Assume small angles
-        
+
         self.cnPos = (self.pos + 
                       self.finMidChord*(self.finRootChord+2*self.finTipChord)
                         /(3*(self.finRootChord+self.finTipChord))
