@@ -1,28 +1,34 @@
 import Atmosphere2 as a
-import Rocket2 as r
+import Component.Rocket as r
 import numpy as np
 
-if __name__ == "__main__":
-    # Initialising rocket -> can be done in separate file?
-    nimbussy = r.Rocket(5,0.2)
-    nose = nimbussy.addNose(type="Haack",
+# FUNCTIONS #
+def initialiseRocket():
+    rocket = r.Rocket(5,0.2)
+    nose = rocket.addNose(type="Haack",
                             length=0.6,
-                            noseRadius=nimbussy.rocketRadius,
+                            noseRadius=rocket.rocketRadius,
                             material="CFRP",
                             thickness=0.002,
                             ) 
     
-    bodyTube = nimbussy.addBodyTube(length=4,
-                                    radius=nimbussy.rocketRadius,
+    bodyTube = rocket.addBodyTube(length=4,
+                                    radius=rocket.rocketRadius,
                                     thickness=0.002,
                                     material="cfrp")
     
-    boatTail = nimbussy.addBoatTail(upperRadius=nimbussy.rocketRadius, 
-                                    lowerRadius=nimbussy.rocketRadius*0.8, 
+    boatTail = rocket.addBoatTail(upperRadius=rocket.rocketRadius, 
+                                    lowerRadius=rocket.rocketRadius*0.8, 
                                     length=0.35, 
                                     thickness=0.002, 
                                     boatTailPos=3.5, 
                                     material='cfrp')
+    return rocket
+
+# MAIN SCRIPT #
+if __name__ == "__main__":
+    nimbussy = initialiseRocket()
+
 
     #fins = nimbussy.addFins()
 
@@ -34,5 +40,5 @@ if __name__ == "__main__":
 
     # Test Angles of Attack 
     aoa = np.deg2rad(np.linspace(0,5,20)) 
-    #print(nimbussy.rocketCPPos(aoa)) # issue here
-    #print(boatTail.cpPos)
+
+

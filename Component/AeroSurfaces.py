@@ -1,7 +1,7 @@
 # General Imports, method is similar to RocketPy coz it is neat code
 import numpy as np
-import Materials as mat
-from function import Function
+import Component.Materials as mat
+from utils.function import Function
 
 # ADD MASS OVERRIDE OPTION 
 # METHOD 1: ARGUMENT = 0 OR 1 FOR MASS MODE (MASSOVERRIDE = 1)
@@ -116,7 +116,6 @@ class NoseCone():
         # Cd from nose cone accounted for in body tube! From reference!
         pass
 
-
     def evaluateMass(self):
         self.mass = mat.Materials(self.noseMaterial).density*1000*self.volume
         return self.mass
@@ -141,11 +140,11 @@ class BodyTube():
         volume: Volume of body tube (m^3)
         mass: Mass of body tube (kg)
         ----------------------------------------------------------------------
-        cd:
-        cn:
+        cd: Drag coefficient of body tube ()
+        cn: Normal coefficient of body tube ()
         ----------------------------------------------------------------------
-        cnPos
-        cgPos
+        cnPos: Position of CP of nose, relative to entire rocket body (m)
+        cgPos: Position of CG of nose, relative to entire rocket body (m)
         ----------------------------------------------------------------------
         """
         self.bodyTubeLength = bodyTubeLength
@@ -181,6 +180,9 @@ class BodyTube():
     def evaluateCN(self):
         self.cnPos = 0.5 * self.bodyTubeLength # note this is relative to the body tube, not the entire rocket, need to change this!
 
+    def evaluateCL(self):
+        pass
+
     def evaluateCD(self):
         self.cd = 1.02
         pass
@@ -206,8 +208,8 @@ class BoatTail():
         cl: Lift coefficient of boat tail ()
         cd: Drag coefficient of boat tail ()
         ----------------------------------------------------------------------
-        cnPos: Position of 
-        cgPos:
+        cnPos: Position of CP of nose, relative to entire rocket body (m)
+        cgPos: Position of CG of nose, relative to entire rocket body (m)
         ----------------------------------------------------------------------
         """
 

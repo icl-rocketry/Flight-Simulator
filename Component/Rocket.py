@@ -1,5 +1,6 @@
 import numpy as np
-from AeroSurfaces import NoseCone, BodyTube, BoatTail, Fins
+from Component.AeroSurfaces import NoseCone, BodyTube, BoatTail, Fins
+from Component.MoreComponents import MassComponent
 
 class Rocket: 
     def __init__(self, rocketLength, rocketRadius):
@@ -46,9 +47,10 @@ class Rocket:
         self.noseAdded = False
         self.bodyTubeAdded = False
         self.boatTailAdded = False
+        self.finsAdded = False
 
         # Checkers to check whether input is valid
-        isTooLong = 0 # Variable that computes total length of components
+        self.isTooLong = 0 # Variable that computes total length of components
 
         return None
 
@@ -136,19 +138,19 @@ class Rocket:
         pass
 
 
-    ### ADD AERODYNAMIC SURFACES ###
+#---------------------------------------------------------------------- ADD AERODYNAMIC SURFACES ----------------------------------------------------------------------#
 
     def addNose(self, type, length, noseRadius, material, thickness,mass=0):
         """
         Adds nose cone to rocket
         """
 
-        nose = NoseCone(type, length, noseRadius, self.rocketRadius, material, thickness,mass) # Pass parameters into NoseCone Class
+        nose = NoseCone(type, length, noseRadius, self.rocketRadius, material, thickness, mass) # Pass parameters into NoseCone Class
         nose.add() # Add nose cone to rocket
         self.addSurface(nose.cn, nose.cnPos, nose.mass, nose.cgPos) # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
         self.noseAdded = True
 
-        #self.checkTotalLength(length)
+        self.checkTotalLength(length)
 
         return nose
     
@@ -156,6 +158,7 @@ class Rocket:
     def addBodyTube(self, length, radius, thickness, material,mass=0):
         """
         Adds body tube to rocket
+        [FUTURE WORK] MAKE MULTIPLE BODY TUBES
         """
 
         if self.noseAdded == True:
@@ -198,7 +201,25 @@ class Rocket:
         return fins
 
 
-    ### OTHER FUNKY FUNCTIONS ###
+#---------------------------------------------------------------------- ADD OTHER COMPONENTS ----------------------------------------------------------------------#
+
+    def addMassComponet(self,mass,pos):
+        """
+        Adds mass component (to shift cgPos)
+        mass in kg and pos in m
+        """
+    # Check if position is valid
+        if pos < 0:
+            raise Exception("Position is invalid! Must be greater than 0")
+        elif pos > self.rocketLength:
+            raise Exception("Mass component is literally not on rocket")
+
+        massComponent = MassComponent(mass,pos)
+        self.addsurface(0,0,massComponent.mass*9.81, massComponent.pos)
+
+        return massComponent
+
+#---------------------------------------------------------------------- FUNKY FUNCTIONS ----------------------------------------------------------------------#
 
     def clear(self):
         """
@@ -214,7 +235,7 @@ class Rocket:
         return None
 
 
-    ### Data Validation ###
+#---------------------------------------------------------------------- DATA VALIDATION ----------------------------------------------------------------------#
 
     def checkTotalLength(self, length):
         self.isTooLong += length
@@ -222,3 +243,4 @@ class Rocket:
             pass
         else:
             raise Exception("Physically not possible")
+        
