@@ -3,13 +3,13 @@ import Rocket2 as r
 import numpy as np
 
 if __name__ == "__main__":
-    # Initialising rocket
+    # Initialising rocket -> can be done in separate file?
     nimbussy = r.Rocket(5,0.2)
     nose = nimbussy.addNose(type="Haack",
                             length=0.6,
                             noseRadius=nimbussy.rocketRadius,
                             material="CFRP",
-                            thickness=0.002
+                            thickness=0.002,
                             ) 
     
     bodyTube = nimbussy.addBodyTube(length=4,
@@ -24,15 +24,15 @@ if __name__ == "__main__":
                                     boatTailPos=3.5, 
                                     material='cfrp')
 
+    #fins = nimbussy.addFins()
 
-    #boatTail = nimbussy.addBoatTail(10,2,10,nimbussy.rocketRadius,200)
-    aoa = np.deg2rad(np.linspace(0,5,20)) # Test Angles of Attack 
-    #print(nose.cn(aoa))
-    #print(nose.cnPos)
-    #print(nimbussy.rocketCN(aoa))
-    print(nimbussy.rocketCPPos(aoa))
-    print(nose.volume)
-    print(nose.mass)
-    print(bodyTube.mass)
-    print(nimbussy.surfaceMass)
+    # IDEALLY IN THE FUTURE, [DYANMICS MODEL HERE]
+    # while...
+
+
+    # PLOTS HERE
+
+    # Test Angles of Attack 
+    aoa = np.deg2rad(np.linspace(0,5,20)) 
+    #print(nimbussy.rocketCPPos(aoa)) # issue here
     #print(boatTail.cpPos)

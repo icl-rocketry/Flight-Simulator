@@ -12,7 +12,7 @@ from function import Function
 
 ### NOSE CONE ###
 class NoseCone():
-    def __init__(self, coneType, length, noseRadius, rocketRadius, material, thickness):
+    def __init__(self, coneType, length, noseRadius, rocketRadius, material, thickness, mass):
         """
         ----------------------------------------------------------------------
         type: Type of nose cone (string)
@@ -48,15 +48,15 @@ class NoseCone():
         # Physical Parameters
         self.noseMaterial = material
         self.volume = None 
-        self.mass = None
+        self.mass = mass
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
         self.k = None # Cp Factor
         self.k2 = None # Cp Position Factor, check cambridge doc for this (end of section 3.2.1)
-        self.cn = None
-        self.cl = None
-        self.cd = None
+        self.cn = 0
+        self.cl = 0
+        self.cd = 0
 
         # Stability Parameters
         self.cnPos = 0
@@ -73,7 +73,12 @@ class NoseCone():
         else:
             raise ValueError("Cannot find nose type?")
         
-        self.evaluateMass()
+        if self.mass == 0:
+            self.evaluateMass() # Evaluate mass if mass is not given  
+        else:
+            # self.mass stays as user input
+            pass 
+
         self.geometricalParameters() # Evaluate geometrical parameters of nose
         self.evaluateCN()
         self.evaluateCL()
@@ -108,11 +113,13 @@ class NoseCone():
         return None
 
     def evaluateCD(self):
+        # Cd from nose cone accounted for in body tube! From reference!
         pass
 
 
     def evaluateMass(self):
         self.mass = mat.Materials(self.noseMaterial).density*1000*self.volume
+        return self.mass
 
 
     def drawNoseCone(self):
@@ -123,14 +130,22 @@ class NoseCone():
 
 ### BODY TUBE ###
 class BodyTube():
-    def __init__(self, bodyTubeLength, bodyTubeRadius, thickness, material):
+    def __init__(self, bodyTubeLength, bodyTubeRadius, thickness, material, mass):
         """
         ----------------------------------------------------------------------
         bodyTubeLength: Length of body tube (m)
         bodyTubeRadius: Radius of body tube (m)
         bodyTubeThickness: Thickness of body tube (m)
         ----------------------------------------------------------------------
-
+        bodyTubeMaterial: Material of body tube ()
+        volume: Volume of body tube (m^3)
+        mass: Mass of body tube (kg)
+        ----------------------------------------------------------------------
+        cd:
+        cn:
+        ----------------------------------------------------------------------
+        cnPos
+        cgPos
         ----------------------------------------------------------------------
         """
         self.bodyTubeLength = bodyTubeLength
@@ -140,15 +155,23 @@ class BodyTube():
         # Physical parameters of body tube
         self.bodyTubeMaterial = material
         self.volume = 0
-        self.mass = 0
+        self.mass = mass
 
         # Aerodynamic parameters
+        self.cd = 0
         self.cn = 0 # Cn of body tube = 0 (someone verify this please)
+
+        # Stability parameters
         self.cnPos = 0
         self.cgPos = 0 # In the future, use Fusion API (have wet and dry CG)
 
     def add(self):
-        self.evaluateMass()
+        if self.mass == 0:
+            self.evaluateMass() # Evaluate mass if mass is not given  
+        else:
+            # self.mass stays as user input
+            pass 
+
         self.evaluateCN()
 
     def evaluateMass(self):
@@ -158,6 +181,11 @@ class BodyTube():
     def evaluateCN(self):
         self.cnPos = 0.5 * self.bodyTubeLength # note this is relative to the body tube, not the entire rocket, need to change this!
 
+    def evaluateCD(self):
+        self.cd = 1.02
+        pass
+
+
     def drawBodyTube(self):
         # FIRST YEAR JOB
         pass
@@ -165,8 +193,22 @@ class BodyTube():
 
 ### BOAT TAIL ###
 class BoatTail():
-    def __init__(self, upperRadius, lowerRadius, length, rocketRadius, thickness, boatTailPos, material):
+    def __init__(self, upperRadius, lowerRadius, length, rocketRadius, thickness, boatTailPos, material, mass):
         """
+        ----------------------------------------------------------------------
+        startRadius: Starting radius of boat tail, r1 (m)
+        endRadius: End radius of boat tail, r2 (m)
+        rocketRadius: Radius of rocket (m)
+        length: Length of boat tail (m)
+        boatTailPos: Position of boat tail, relative to whole rocket body (m)
+        ----------------------------------------------------------------------
+        cn: Normal coefficient of boat tail ()
+        cl: Lift coefficient of boat tail ()
+        cd: Drag coefficient of boat tail ()
+        ----------------------------------------------------------------------
+        cnPos: Position of 
+        cgPos:
+        ----------------------------------------------------------------------
         """
 
         #NOTE: Boattail is modelled as a conical transition
@@ -183,6 +225,7 @@ class BoatTail():
         self.cl = None
         self.cd = None
 
+        # Stability parameters
         self.cnPos = 0
         self.cgPos = 0
 
@@ -190,17 +233,23 @@ class BoatTail():
         self.boatTailMaterial = material
         self.boatTailThickness = thickness
         self.volume = None
-        self.mass = None
+        self.mass = mass
     
     def add(self):
+        if self.mass == 0:
+            self.evaluateMass() # Evaluate mass if mass is not given  
+        else:
+            # self.mass stays as user input
+            pass 
+
         self.evaluateCN() # Evaluate Cn and its position
-        self.evaluateMass() # Evaluate mass of boat tail
+
 
     def evaluateCN(self):
         # Sanity check, a boat tail should have a negative CP, hence pushing the total CP forward
         dRatio = self.rocketRadius/self.endRadius
 
-        self.cn = 2*((self.endRadius/self.rocketRadius)**2 - (self.startRadius/self.rocketRadius)**2) # Modelling boat tail as body tube transition
+        self.cn = Function(lambda alpha: 2*((self.endRadius/self.rocketRadius)**2 - (self.startRadius/self.rocketRadius)**2) * alpha) # Modelling boat tail as body tube transition
         self.cnPos = self.boatTailPos + self.length/3 * (1+(1-dRatio)/(1-dRatio**2))
 
     def evaluateMass(self):
@@ -214,7 +263,7 @@ class BoatTail():
 
 ### FINS ### 
 class Fins():
-    def __init__(self, finType, n, finSpan, finRootChord, finMidChord, finTipChord, rocketRadius, pos):
+    def __init__(self, finType, numberOfFins, finSpan, finRootChord, finMidChord, finTipChord, sweepLength, sweepAngle, rocketRadius, pos, mass=0):
         # [IMPORTANT] See how there are geometric parameters defined for trapezoidal fins ONLY, this should be moved to a separate function in the near future
         # i.e. addTrapezoidalFins(self, finSpanm finRootChord...) instead of initialising these geometric parameters in the fins class itself 
         """
@@ -225,7 +274,7 @@ class Fins():
         ----------------------------------------------------------------------
         """
         # Physical parameters
-        self.numberOfFins = n
+        self.numberOfFins = numberOfFins
         self.finType = finType
         self.finSpan = finSpan
         self.finRootChord = finRootChord
@@ -244,6 +293,8 @@ class Fins():
 
         self.pos = pos
 
+        self.volume = None
+        self.mass = mass
 
     def addFins(self):
 
@@ -268,19 +319,20 @@ class Fins():
         self.cn = Function(lambda alpha: self.cnAlpha * alpha) #Assume small angles
 
         self.cnPos = (self.pos + 
-                      self.finMidChord*(self.finRootChord+2*self.finTipChord)
-                        /(3*(self.finRootChord+self.finTipChord))
+                      self.finMidChord*(self.finRootChord+2*self.finTipChord)/(3*(self.finRootChord+self.finTipChord))
                           +(self.finRootChord+self.finTipChord
-                          -(self.finRootChord*self.finTipChord
-                        /(self.finRootChord+self.finTipChord)))
-                      /6
-                    )
+                          -(self.finRootChord*self.finTipChord/(self.finRootChord+self.finTipChord)))/6
+                      )
 
     def evaluateCL(self):
         pass
 
     def evaluateCD(self):
         self.cd = 0
+
+    def drawFins(self):
+        # FIRST YEAR JOB
+        pass
 
 
 

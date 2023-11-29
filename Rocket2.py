@@ -8,6 +8,9 @@ class Rocket:
         rocketLength: Total length of rocket (m)
         rocketRadius: Radius of rocket (m)
         ----------------------------------------------------------------------
+        rocketCL: Lift Coefficient of rocket ()
+        rocketCD: Drag coefficinet of rocket ()
+        ----------------------------------------------------------------------
         rocketCGPos: Position of CG on rocket @ alpha = 0 (m)
         rocketCPPos: Position of CP on rocket @ alpha = 0 (m)
         staticMargin: Static Margin of rocket (calibers)
@@ -23,7 +26,12 @@ class Rocket:
         self.rocketLength = rocketLength # Rocket length is for entirety of rocket
         self.rocketRadius = rocketRadius
 
+        # Aerodynamic Coefficients
+        self.rocketCL = 0
+        self.rocketCD = 0
+
         # Aerodynamic Stability Analysis
+        self.rocketCN = 0
         self.rocketCGPos = 0 
         self.rocketCPPos = 0 
         self.staticMargin = 0 
@@ -51,13 +59,13 @@ class Rocket:
         try:
             self.surfaceCN.append(cp)
             self.surfaceCNPos.append(cpPos)
-            self.surfaceMass.append(mass*9.81) # Assume constant g for now, we can write a function of cg with gravity
+            self.surfaceMass.append(mass) # Assume constant g for now, we can write a function of cg with gravity
             self.surfaceCG.append(cgPos)
 
         except TypeError:
             self.surfaceCN.append(cp)
             self.surfaceCNPos.append(cpPos)
-            self.surfaceMass.append(mass*9.81) # Assume constant g for now, we can write a function of cg with gravity
+            self.surfaceMass.append(mass) # Assume constant g for now, we can write a function of cg with gravity
             self.surfaceCG.append(cgPos)
 
         # Re-evalute static margin with newly added aero surface
@@ -95,11 +103,13 @@ class Rocket:
             for coeff, pos in zip(self.surfaceCN,self.surfaceCNPos):
                 cpTop += coeff*pos
 
+        self.rocketCN = sum(self.surfaceCN)
+
         # In the odd case where there are no existing aero surfaces initialsied on rocket...
-        if sum(self.surfaceCN) == None:
+        if self.rocketCN == None:
             self.rocketCPPos = 0
         else:
-            self.rocketCPPos = cpTop/sum(self.surfaceCN)
+            self.rocketCPPos = cpTop/self.rocketCN
 
 
     def evaluateRocketCG(self):
@@ -110,25 +120,31 @@ class Rocket:
         cgTop = 0
 
         try:
-            for coeff, pos in zip(self.surfaceMass,self.surfaceCG):
-                cgTop += coeff*pos
+            for m, pos in zip(self.surfaceMass,self.surfaceCG):
+                cgTop += m*9.81*pos
 
         except TypeError:
             for coeff, pos in zip(self.surfaceMass,self.surfaceCG):
-                cgTop += coeff*pos
+                cgTop += m*9.81*pos
         
         self.rocketCGPos = cgTop/sum(self.surfaceMass)
+
+    def evaluateRocketCL(self):
+        pass
+
+    def evaluateRocketCD(self):
+        pass
 
 
     ### ADD AERODYNAMIC SURFACES ###
 
-    def addNose(self, type, length, noseRadius, material, thickness):
+    def addNose(self, type, length, noseRadius, material, thickness,mass=0):
         """
         Adds nose cone to rocket
         """
 
-        nose = NoseCone(type, length, noseRadius, self.rocketRadius, material, thickness) # Set parameters for nose
-        nose.add() # Initialise design parameters associated with nose
+        nose = NoseCone(type, length, noseRadius, self.rocketRadius, material, thickness,mass) # Pass parameters into NoseCone Class
+        nose.add() # Add nose cone to rocket
         self.addSurface(nose.cn, nose.cnPos, nose.mass, nose.cgPos) # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
         self.noseAdded = True
 
@@ -137,14 +153,14 @@ class Rocket:
         return nose
     
 
-    def addBodyTube(self, length, radius, thickness, material):
+    def addBodyTube(self, length, radius, thickness, material,mass=0):
         """
         Adds body tube to rocket
         """
 
         if self.noseAdded == True:
-            bodyTube = BodyTube(length, radius, thickness, material)
-            bodyTube.add() # Add body tube to thing
+            bodyTube = BodyTube(length, radius, thickness, material,mass) # Pass parameters into BodyTube Class
+            bodyTube.add() # Add body tube to rocket
             self.addSurface(bodyTube.cn, bodyTube.cnPos, bodyTube.mass, bodyTube.cgPos) # Technically contributes to nothing
             self.bodyTubeAdded = True
         else:
@@ -155,7 +171,7 @@ class Rocket:
         return bodyTube
 
 
-    def addBoatTail(self, upperRadius, lowerRadius, length, thickness, boatTailPos, material):
+    def addBoatTail(self, upperRadius, lowerRadius, length, thickness, boatTailPos, material, mass=0):
         """
         Adds boat tail to rocket
         """
@@ -163,7 +179,7 @@ class Rocket:
         if boatTailPos < 0:
             ValueError("BROOOOO") #Force thing to be placed in correct position
 
-        boatTail = BoatTail(upperRadius, lowerRadius, length, self.rocketRadius, thickness, boatTailPos, material)
+        boatTail = BoatTail(upperRadius, lowerRadius, length, self.rocketRadius, thickness, boatTailPos, material, mass)
         boatTail.add() # Initialise design parameters associated with boat tail
         self.addSurface(boatTail.cn,boatTail.cnPos, boatTail.mass, boatTail.cgPos)
 
