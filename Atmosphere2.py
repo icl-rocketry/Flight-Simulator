@@ -1,6 +1,7 @@
 # general imports
 import numpy as np
 from matplotlib import pyplot as plt
+
 # forecasting API imports, download for new users
 import requests_cache
 import openmeteo_requests
@@ -8,7 +9,7 @@ from retry_requests import retry
 
 
 class Environment:
-    def __init__(self,modelAtmo=False):
+    def __init__(self):
         """
         ----------------------------------------------------------------------
         a: Speed of sound (m/s)
@@ -54,18 +55,18 @@ class Environment:
         self.sampleLength = 2
         self.totalLength = 200
         self.userWind = False
-        self.modelAtmo = modelAtmo
+        self.modelAtmo = False
 
         # Wind Parameters
         self.windSpeed = 8  # at 10m altitude. TODO: allow for more complex user-defined wind models
         self.windDirection = 120
         self.turbulenceIntensity = 0.15  # typically 0.1-0.2
         self.z0 = 0.001
-        self.z1 = 1000 * (self.z0 ** 0.18)
+        self.z1 = 1000 * (self.z0**0.18)
 
         # Planet Parameters
         self.earthMass = 5.97e24
-        self.earthRadius = 6.36e6
+        self.earthRadius = 6.371e6
         self.G = 6.67e-11
         self.latitude = 39.478
         self.longitude = -8.3364
@@ -74,13 +75,125 @@ class Environment:
         self.altitudeLast = 0
         self.rocketVelocity = 100  # this should come from the rocket class but there isn't one yet
 
-    def atmosphere(self, altitude):
+        # pressure list
+        self.pressureList = [
+            1000,
+            975,
+            950,
+            925,
+            900,
+            850,
+            800,
+            700,
+            600,
+            500,
+            400,
+            300,
+            250,
+            200,
+            150,
+            100,
+            70,
+            50,
+            30,
+        ]  # hPa
+
+        self.params = {
+            "latitude": self.latitude,  # this is near EuRoC
+            "longitude": self.longitude,
+            "hourly": [
+                "temperature_1000hPa",
+                "temperature_975hPa",
+                "temperature_950hPa",
+                "temperature_925hPa",
+                "temperature_900hPa",
+                "temperature_850hPa",
+                "temperature_800hPa",
+                "temperature_700hPa",
+                "temperature_600hPa",
+                "temperature_500hPa",
+                "temperature_400hPa",
+                "temperature_300hPa",
+                "temperature_250hPa",
+                "temperature_200hPa",
+                "temperature_150hPa",
+                "temperature_100hPa",
+                "temperature_70hPa",
+                "temperature_50hPa",
+                "temperature_30hPa",
+                "windspeed_1000hPa",
+                "windspeed_975hPa",
+                "windspeed_950hPa",
+                "windspeed_925hPa",
+                "windspeed_900hPa",
+                "windspeed_850hPa",
+                "windspeed_800hPa",
+                "windspeed_700hPa",
+                "windspeed_600hPa",
+                "windspeed_500hPa",
+                "windspeed_400hPa",
+                "windspeed_300hPa",
+                "windspeed_250hPa",
+                "windspeed_200hPa",
+                "windspeed_150hPa",
+                "windspeed_100hPa",
+                "windspeed_70hPa",
+                "windspeed_50hPa",
+                "windspeed_30hPa",
+                "winddirection_1000hPa",
+                "winddirection_975hPa",
+                "winddirection_950hPa",
+                "winddirection_925hPa",
+                "winddirection_900hPa",
+                "winddirection_850hPa",
+                "winddirection_800hPa",
+                "winddirection_700hPa",
+                "winddirection_600hPa",
+                "winddirection_500hPa",
+                "winddirection_400hPa",
+                "winddirection_300hPa",
+                "winddirection_250hPa",
+                "winddirection_200hPa",
+                "winddirection_150hPa",
+                "winddirection_100hPa",
+                "winddirection_70hPa",
+                "winddirection_50hPa",
+                "winddirection_30hPa",
+                "geopotential_height_1000hPa",
+                "geopotential_height_975hPa",
+                "geopotential_height_950hPa",
+                "geopotential_height_925hPa",
+                "geopotential_height_900hPa",
+                "geopotential_height_850hPa",
+                "geopotential_height_800hPa",
+                "geopotential_height_700hPa",
+                "geopotential_height_600hPa",
+                "geopotential_height_500hPa",
+                "geopotential_height_400hPa",
+                "geopotential_height_300hPa",
+                "geopotential_height_250hPa",
+                "geopotential_height_200hPa",
+                "geopotential_height_150hPa",
+                "geopotential_height_100hPa",
+                "geopotential_height_70hPa",
+                "geopotential_height_50hPa",
+                "geopotential_height_30hPa",
+                "wind_speed_10m",
+                "wind_direction_10m",
+                "temperature_2m",
+            ],
+            "wind_speed_unit": "ms",
+            "timezone": "auto",
+            "forecast_days": 1,
+        }
+
+    def atmosphere(self, altitude, rocketHeightDifference):
         # Basic ISA Atmospheric Model for now, assume constant g (geopotential)
 
         # Finding Lapse Rate (K/m)
         if altitude < 0:
             lapseRate = 0
-            raise Exception("Rocket disappeared.")
+            # raise Exception("Rocket disappeared.")
         elif 0 <= altitude <= 11000:
             lapseRate = 0.0065
         elif 11000 < altitude <= 20000:
@@ -90,17 +203,19 @@ class Environment:
         else:
             lapseRate = 0
 
-        d_altitude = altitude - self.altitudeLast  # Compute altitude difference
-        self.altitudeLast = altitude  # Store previous altitude
-
         if self.modelAtmo:
-            self.temperature -= lapseRate * d_altitude  # Temperature variation
-            self.pressure = self.pressure * (1 - lapseRate / 288.15) ** (
-            self.g / (self.R * lapseRate)
-            )  # Pressure variation
-            self.density = self.density * (1 - lapseRate / 288.15) ** (
-            self.g / (self.R * lapseRate) - 1
-            )  # Density variation
+            self.temperature -= lapseRate * rocketHeightDifference  # Temperature variation
+            if 0 <= altitude <= 32000:
+                self.pressure = self.pressure * (1 - lapseRate / 288.15) ** (
+                    self.g / (self.R * lapseRate)
+                )  # Pressure variation
+                self.density = self.density * (1 - lapseRate / 288.15) ** (
+                    self.g / (self.R * lapseRate) - 1
+                )  # Density variation
+            else:
+                self.pressure = 0
+                self.density = 0
+
         else:
             # interpolate temperature and pressure from the forecast
             self.temperature, self.pressure = self.getForecastProperties(altitude)
@@ -182,95 +297,7 @@ class Environment:
             # Make sure all required weather variables are listed here
             # The order of variables in hourly or daily is important to assign them correctly below
             url = "https://api.open-meteo.com/v1/forecast"
-            params = {
-                "latitude": self.latitude,  # this is near EuRoC
-                "longitude": self.longitude,
-                "hourly": [
-                    "temperature_1000hPa",
-                    "temperature_975hPa",
-                    "temperature_950hPa",
-                    "temperature_925hPa",
-                    "temperature_900hPa",
-                    "temperature_850hPa",
-                    "temperature_800hPa",
-                    "temperature_700hPa",
-                    "temperature_600hPa",
-                    "temperature_500hPa",
-                    "temperature_400hPa",
-                    "temperature_300hPa",
-                    "temperature_250hPa",
-                    "temperature_200hPa",
-                    "temperature_150hPa",
-                    "temperature_100hPa",
-                    "temperature_70hPa",
-                    "temperature_50hPa",
-                    "temperature_30hPa",
-                    "windspeed_1000hPa",
-                    "windspeed_975hPa",
-                    "windspeed_950hPa",
-                    "windspeed_925hPa",
-                    "windspeed_900hPa",
-                    "windspeed_850hPa",
-                    "windspeed_800hPa",
-                    "windspeed_700hPa",
-                    "windspeed_600hPa",
-                    "windspeed_500hPa",
-                    "windspeed_400hPa",
-                    "windspeed_300hPa",
-                    "windspeed_250hPa",
-                    "windspeed_200hPa",
-                    "windspeed_150hPa",
-                    "windspeed_100hPa",
-                    "windspeed_70hPa",
-                    "windspeed_50hPa",
-                    "windspeed_30hPa",
-                    "winddirection_1000hPa",
-                    "winddirection_975hPa",
-                    "winddirection_950hPa",
-                    "winddirection_925hPa",
-                    "winddirection_900hPa",
-                    "winddirection_850hPa",
-                    "winddirection_800hPa",
-                    "winddirection_700hPa",
-                    "winddirection_600hPa",
-                    "winddirection_500hPa",
-                    "winddirection_400hPa",
-                    "winddirection_300hPa",
-                    "winddirection_250hPa",
-                    "winddirection_200hPa",
-                    "winddirection_150hPa",
-                    "winddirection_100hPa",
-                    "winddirection_70hPa",
-                    "winddirection_50hPa",
-                    "winddirection_30hPa",
-                    "geopotential_height_1000hPa",
-                    "geopotential_height_975hPa",
-                    "geopotential_height_950hPa",
-                    "geopotential_height_925hPa",
-                    "geopotential_height_900hPa",
-                    "geopotential_height_850hPa",
-                    "geopotential_height_800hPa",
-                    "geopotential_height_700hPa",
-                    "geopotential_height_600hPa",
-                    "geopotential_height_500hPa",
-                    "geopotential_height_400hPa",
-                    "geopotential_height_300hPa",
-                    "geopotential_height_250hPa",
-                    "geopotential_height_200hPa",
-                    "geopotential_height_150hPa",
-                    "geopotential_height_100hPa",
-                    "geopotential_height_70hPa",
-                    "geopotential_height_50hPa",
-                    "geopotential_height_30hPa",
-                    "wind_speed_10m",
-                    "wind_direction_10m",
-                    "temperature_2m",
-                ],
-                "wind_speed_unit": "ms",
-                "timezone": "auto",
-                "forecast_days": 1,
-            }
-            responses = openmeteo.weather_api(url, params=params)
+            responses = openmeteo.weather_api(url, params=self.params)
 
             # Process first location. Add a for-loop for multiple locations or weather models
             response = responses[0]
@@ -287,23 +314,21 @@ class Environment:
                     0,
                     hourly.Variables(76).ValuesAsNumpy()[0],  # type: ignore
                     hourly.Variables(77).ValuesAsNumpy()[0],  # type: ignore
-                    hourly.Variables(78).ValuesAsNumpy()[0]+273.15,  # type: ignore
+                    hourly.Variables(78).ValuesAsNumpy()[0] + 273.15,  # type: ignore
                 ]
                 data.append(surfaceValues)  # add the surface values to the data array
-                for i in range(0, n):  # Loop through all pressure levels
+                for i in range(n):  # Loop through all pressure levels
                     geopotential_height = hourly.Variables(i + 57).ValuesAsNumpy()  # type: ignore
                     windspeed = hourly.Variables(i + 19).ValuesAsNumpy()  # type: ignore
                     winddirection = hourly.Variables(i + 38).ValuesAsNumpy()  # type: ignore
                     temperature = hourly.Variables(i).ValuesAsNumpy()  # type: ignore
-                    data.append([geopotential_height[0], windspeed[0], winddirection[0], temperature[0]+273.15])  # type: ignore
+                    data.append([geopotential_height[0], windspeed[0], winddirection[0], temperature[0] + 273.15])  # type: ignore
 
-        self.upperLevelWinds = np.array(data)
+        self.upperLevelWinds = np.array(data[1:])  # TODO: fix this as it shouldn't be like this i dont think
 
     def getUpperLevelWinds(self, altitude):
         # returns the mean wind speed and direction at a given altitude using the forecast/user-defined wind model
-        if altitude < min(self.upperLevelWinds[:, 0]):
-            return 0, 0
-        elif altitude > max(self.upperLevelWinds[:, 0]):
+        if altitude > max(self.upperLevelWinds[:, 0]):
             return 0, 0
         else:
             # interpolate speed
@@ -317,35 +342,14 @@ class Environment:
     def getForecastProperties(self, altitude):  # using the Open-Meteo API
         # returns the forecast temperature and pressure at a given altitude. Forecast must be fetched first
         if altitude < min(self.upperLevelWinds[:, 0]):
-            return 288.15, 101325
+            return self.upperLevelWinds[0, 3], self.pressureList[0] * 100
         elif altitude > max(self.upperLevelWinds[:, 0]):
-            return 0, 0
+            return 288.15, 0
         else:
             # interpolate temperature
             temperature = np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 3])
             # interpolate pressure
-            pressureList = [
-                1000,
-                975,
-                950,
-                925,
-                900,
-                850,
-                800,
-                700,
-                600,
-                500,
-                400,
-                300,
-                250,
-                200,
-                150,
-                100,
-                70,
-                50,
-                30,
-            ]  # hPa
-            pressure = np.interp(altitude, self.upperLevelWinds[:, 0], pressureList) * 100  # Pa
+            pressure = np.interp(altitude, self.upperLevelWinds[:, 0], self.pressureList) * 100  # Pa
             return temperature, pressure
 
 
@@ -372,7 +376,7 @@ if __name__ == "__main__":
     # plot the wind over time, while altitude changes (that makes it really complicated)
     # this mess will most likely go in the simulation class or similar but it's here for testing purposes now
     # TODO: see if theres a nice way to smooth the discontinuities from length scale recalculation which doesnt remove the high-frequency content
-    while alt < 3000:
+    while alt < 600:
         t += env.deltaTime
         # every sampleLength seconds, recalculate the turbulence
         if steps % (env.sampleLength / env.deltaTime) == 0:
@@ -394,11 +398,14 @@ if __name__ == "__main__":
             vTotal = vMean + (v[stepsSince] * env.turbulenceIntensity * totalSpeed)
             wTotal = w[stepsSince] * totalSpeed * 0.1
         except IndexError:
-            print("The time for which the turbulence is generated 'totalLength' is too short, increase it to cover the entire flight.")
+            print(
+                "The time for which the turbulence is generated 'totalLength' is too short, increase it to cover the entire flight."
+            )
             break
         alt += env.rocketVelocity * env.deltaTime
         steps += 1
         stepsSince += 1
+        env.atmosphere(alt, env.rocketVelocity * env.deltaTime)
         uList.append(uTotal)
         vList.append(vTotal)
         wList.append(wTotal)

@@ -36,22 +36,21 @@ launchRailLength = 9  # m
 launchRailAngle = 5 * np.pi / 180  # rad
 launchRailDirection = np.pi / 2  # rad
 separationAngle = 0.3  # rad - angle of attack at flow separation
-g0 = 9.81  # m/s^2
+# g0 = 9.81  # m/s^2
 sideA = 0.2854
 topA = 0.0114
 Ilr_dry = np.array([[6.55, 0, 0], [0, 6.55, 0], [0, 0, 0.0219]])  # moment of inertia of the rocket when dry
 Ilr_fuel = np.array([[0.0329, 0, 0], [0, 0.0329, 0], [0, 0, 0.0029]])  # moment of inertia of the fuel
+canardArea = 0.004  # m^2
+canardCL = 0.2  # TODO: find a better value for this
+canardNumber = 3  # number of canards
+canardArm = 0.11  # distance from CoM to canards
+
+# Rockets
+Rocket = None #Rocket(5, 0.1)
 
 
 # other functions
-def pressure(h):
-    """This function returns the pressure at a given altitude."""
-    return 1.225 * ((288.16 - 0.0065 * h) / 288.16) ** 4.256  # kg/m^3, valid for 0-11km
-
-
-def temperature(h):
-    """This function returns the temperature at a given altitude."""
-    return 288.16 - 0.0065 * h  # K, valid for 0-11km
 
 
 def read_thrust_curve(filename):
@@ -100,21 +99,14 @@ def interpolate_thrust(t, thrust_data):
     return thrust1 + (thrust2 - thrust1) * (t - t1) / (t2 - t1)
 
 
-def gravity(h):
-    """This function returns the acceleration due to gravity at a given altitude."""
-    return g0 * ((6371000 / (6371000 + h)) ** 2)
-
-
 def CoP(Rocket, mach, alpha):  # TODO: with the new sim this can be calculated in a less dodgy way
     """This function returns the distance from the thrust vector to the pressure vector."""
     # OLD CODE:
-    # CoP = length - (1.83 + mach / 20)
-    # if mach < 0.25:
-    #     CoP = length - 1.8425 - 0.25 * (0.25 - mach)
-    # return CoP  # crude approximation from openrocket sims
+    CoP = length - (1.83 + mach / 20)
+    if mach < 0.25:
+        CoP = length - 1.8425 - 0.25 * (0.25 - mach)
+    return CoP  # crude approximation from openrocket sims
     # NEW CODE (using the Rocket class):
-    
-
 
 
 def dragCoef(mach, alpha):  # TODO: with the new sim this can be calculated in a less dodgy way
@@ -161,6 +153,9 @@ def recalculate(state, t, dt, initialCall):
     # derivative of the position vector
     diff_r = dr
 
+    # get atmospheric properties for the current altitude
+    env.atmosphere(r[2], dr[2]*dt)  # update the atmosphere
+
     # derivative of the velocity vector requires the forces acting on the rocket
     # Thrust
     direction = quaternion.as_rotation_matrix(q).dot(np.array([0, 0, 1]))  # direction of thrust
@@ -168,7 +163,7 @@ def recalculate(state, t, dt, initialCall):
     T = interpolate_thrust(t, thrust_data) * direction
     # Drag
     # wind
-    i = int(t/dt)
+    i = int(t / dt)
     uWind, vWind = env.getUpperLevelWinds(r[2])  # get the wind at the current time
     totalSpeed = np.sqrt(uWind**2 + vWind**2)
     uWind = uWind + (turb[0][i] * totalSpeed)  # add turbulence
@@ -176,17 +171,16 @@ def recalculate(state, t, dt, initialCall):
     wWind = turb[2][i] * 0.1 * totalSpeed
     wind = np.array([uWind, vWind, wWind])
 
-
     dr_wind = dr - wind
     # cross-sectional area, where alpha is the angle between rocket direction and velocity vector
     if np.dot(dr, direction) == 0:
         alpha = 0
     else:
         alpha = np.arccos(np.dot(dr_wind, direction / np.linalg.norm(dr_wind)))
-    mach = np.linalg.norm(dr_wind) / np.sqrt(1.4 * 287 * temperature(r[2]))  # mach number
+    mach = np.linalg.norm(dr_wind) / np.sqrt(1.4 * 287 * env.temperature)  # mach number
     Cd = dragCoef(mach, alpha)  # drag coefficient
-    rho = pressure(r[2])
-    D_translate = -0.5 * pressure(r[2]) * Cd * topA * np.linalg.norm(dr_wind) * dr_wind
+    rho = env.density
+    D_translate = -0.5 * rho * Cd * topA * np.linalg.norm(dr_wind) * dr_wind
     D_rotate = (
         -np.cross(w, direction) * np.linalg.norm(w) * rho * Cd_cyl * radius / 6 * ((length - Rt) ** 3 - Rt**3)
     )  # drag due to rotation - TODO: add fins
@@ -197,7 +191,7 @@ def recalculate(state, t, dt, initialCall):
     # Lift
     L = np.array([0, 0, 0])  # TODO: add lift, this probably isnt that hard, just use Cl and alpha
     # Gravity
-    G = np.array([0, 0, -m * gravity(r[2])])
+    G = np.array([0, 0, -m * env.g])
     # derivative of the velocity vector can now be calculated
     diff_dr = 1 / m * (T + D + L + G)
 
@@ -216,7 +210,7 @@ def recalculate(state, t, dt, initialCall):
         * (Ilr_fuel + (m - m_dry) * np.array([[(Rt - R_tank) ** 2, 0, 0], [0, (Rt - R_tank) ** 2, 0], [0, 0, 0]]))
     )  # TODO: openrocket seems to disagree with this?
     # centre of pressure moves too - but this is more complicated
-    Rpt = CoP(mach)  # distance from thrust location to pressure vector
+    Rpt = CoP(Rocket, mach, alpha)  # distance from thrust location to pressure vector
     Rp = Rt - Rpt
     M_forces = np.cross(T, Rt * direction) + np.cross(
         D + L, Rp * direction
@@ -224,7 +218,8 @@ def recalculate(state, t, dt, initialCall):
     M_rotation = (
         -rho * Cd * w * np.linalg.norm(w) * radius / 8 * length**4
     )  # moment due to rotational drag for a cylinder.
-    M_rotation_fins = 0  # TODO: take fins into account
+    M_rotation_fins = 0.5 * rho * np.linalg.norm(dr_wind)**2 * canardArea * canardCL * canardNumber * canardArm * direction # TODO: take fins into account
+    print(dr[2], M_rotation_fins)
     M = M_forces + M_rotation + M_rotation_fins
 
     diff_w = np.linalg.inv(I).dot(M)
@@ -232,7 +227,7 @@ def recalculate(state, t, dt, initialCall):
         diff_w = np.array([0, 0, 0])  # prevent rotation
 
     # derivative of the mass
-    diff_m = np.array([-(interpolate_thrust(t, thrust_data) / (g0 * Isp))])
+    diff_m = np.array([-(interpolate_thrust(t, thrust_data) / (env.g * Isp))])
 
     # calculate pitch, roll and yaw to put in tracked values
     pitch = np.arcsin(2 * (q.w * q.y - q.z * q.x))
@@ -288,10 +283,15 @@ def recalculate(state, t, dt, initialCall):
         T,
         L,
         I,
-        wind
+        wind,
     ]  # if we want to plot things not in the state vector, we can add them to this list
 
     i += 1
+    # print("Position: ", r, "\nVelocity: ", dr, "\nQuaternion: ", q, "\nAngular Velocity: ", w, "\nMass: ", m, "\nTime: ", t)
+    # print("Acceleration: ", diff_dr, "\nPitch: ", pitch, "\nRoll: ", roll, "\nYaw: ", yaw, "\nMoment: ", M, "\nDrag: ", D)
+    # print("Alpha: ", alpha, "\nPitch Rate: ", pitch_rate, "\nRoll Rate: ", roll_rate, "\nYaw Rate: ", yaw_rate, "\nRt: ", Rt)
+    # print("Rp: ", Rp, "\nMach: ", mach, "\nThrust: ", T, "\nLift: ", L, "\nI: ", I, "\nWind: ", wind)
+    # print("\n\n\n")
     return newState, trackedValues
 
 
@@ -317,6 +317,16 @@ def RK4(state, dt, t):  # other methods can be used but this is a good start
 
 def main():
     """This function runs the simulation."""
+
+        # wind
+    global env
+    t_end = 10 # end time
+    env = Environment()
+    env.getForecast()  # this must be done before the simulation starts - could do it in __init__
+    global turb
+    turb = env.getTurbulence(1000, t_end)
+
+
     # Initial conditions
     r = np.array([0, 0, 1])
     dr = np.array([0, 0, 0])
@@ -334,14 +344,6 @@ def main():
     # Simulation parameters
     dt = 0.04  # time step
     t = 0  # initial time
-    t_end = 100  # end time
-
-    #wind
-    global env
-    env = Environment()
-    env.getForecast()  # this must be done before the simulation starts - could do it in __init__
-    global turb
-    turb = env.getTurbulence(1000, t_end)
 
     # Simulation loop
     while t < t_end and state[2] > 0:
@@ -408,7 +410,7 @@ def main():
 
     # plot pitch, roll and yaw all in one plot and angle of attack
     axs[1, 0].plot([t for t in tracked_dict], [tracked_dict[t][1] for t in tracked_dict], label="pitch")
-    axs[1, 0].plot([t for t in tracked_dict], [tracked_dict[t][2] for t in tracked_dict], label="roll")
+    #axs[1, 0].plot([t for t in tracked_dict], [tracked_dict[t][2] for t in tracked_dict], label="roll")
     axs[1, 0].plot([t for t in tracked_dict], [tracked_dict[t][3] for t in tracked_dict], label="yaw")
     axs[1, 0].plot(
         [t for t in tracked_dict],
@@ -472,7 +474,7 @@ def main():
     figManager.window.showMaximized()
     plt.show()
 
-    #plot the wind
+    # plot the wind
     plt.figure()
     plt.plot([t for t in state_dict], [tracked_dict[t][16][0] for t in state_dict], label="u")
     plt.plot([t for t in state_dict], [tracked_dict[t][16][1] for t in state_dict], label="v")
