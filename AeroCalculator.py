@@ -5,6 +5,7 @@ from the geometrical characterisation of the rocket"""
 from numpy import *
 from scipy.interpolate import RegularGridInterpolator
 
+
 # functions
 def getValue2D(x, y, filename):
     """This function gets the value from the data using interpolation
@@ -49,19 +50,21 @@ def getValue3D(x, y, z, filename):
     )
     return val[0]
 
+
 def getAeroParams(M, alpha, T, a, Rocket):
-    '''Gets aero parameters of the rocket (force and moment)
+    """Gets aero parameters of the rocket (force and moment)
     M:      Mach number
     alpha:  angle of attack in degrees
     T:      temperature in K
     a:      speed of sound in m/s
+    xm:     distance from the nose to pitch axis
     Rocket: rocket object used to get the geometry
-    
+
     outputs:
     Cn:     normal force coefficient
     Cm:     pitching moment coefficient
     xcp:    center of pressure in m from the nose cone tip
-    ...other derivatives?'''
+    Mq:     pitch damping derivative"""
 
     # nose cone geometry from ESDU 77028
     Cvf = 0.5  # for haack
@@ -75,9 +78,11 @@ def getAeroParams(M, alpha, T, a, Rocket):
     L = 4.7  # length of rocket in m
 
     # get flow parameters
-    ld = lfd + lcd + lad
+    ld = lfd + lcd
+    xm = L / 2 # TODO: this does not need to be half the length
+    xml = xm / L
     mu = 1.458 * 10**-6 * (T**1.5) / (T + 110.4)
-    Re = 1.225 * a * (L/ld) / mu
+    Re = 1.225 * a * (L / ld) / mu
     logR = log10(Re)  # used as the ESDU graph is logaritmic
 
     # interpolating from ESDU 89008
@@ -92,17 +97,18 @@ def getAeroParams(M, alpha, T, a, Rocket):
     delta_Cna_d = 8 * dStarL * ld
     delta_Cna_f = 4 * Cf * ld
     Cna = k * Cna_l + delta_Cna_d + delta_Cna_f
-    delta_Cm0a_d = -4 * dStarL * ld ** 2
-    delta_Cm0a_f = -2 * Cf * ld ** 2
+    delta_Cm0a_d = -4 * dStarL * ld**2
+    delta_Cm0a_f = -2 * Cf * ld**2
     Cm0a = k * Cna_l * (CmCn + delta_CmCn) + delta_Cm0a_d + delta_Cm0a_f  # about the nose
-
+    Cma = 0
     # Cnc from ESDU 89014
     Cnc = getValue2D(M, alpha, "vortexGeneration.csv")
 
     # convert coefficients to forces and moments using ESDU 89014
     alpha = radians(alpha)
     Cn = Cna * sin(alpha) * cos(alpha) + 4 / pi * ld * Cpl * Cnc
-    Cm0 = Cm0a * sin(alpha) * cos(alpha) - 2 / pi * ld ** 2 * Cpl * Ccl * Cnc
+    Cm0 = Cm0a * sin(alpha) * cos(alpha) - 2 / pi * ld**2 * Cpl * Ccl * Cnc
+    Cma = Cna * (xml * ld) + Cm0a
 
     # modifications due to boattail, from ESDU 87033
     A = -1.3 * lad + 6.35 * lad - 7.85
@@ -113,11 +119,20 @@ def getAeroParams(M, alpha, T, a, Rocket):
     delta_Cdc = -(2 + tanh(1.5 * M * sin(alpha) - 2.4)) * lad * (1 - dbd)
     delta_Cn = delta_Cna * sin(alpha) * cos(alpha) * (1 - (sin(alpha) ** 0.6)) + delta_Cdc * (sin(alpha) ** 2)
     Cn += delta_Cn
-    if alpha == 0: # avoid division by zero
+    if alpha == 0:  # avoid division by zero
         Cm = 0
         xcp = 0
     else:
-        Cm = Cn * (ld/2 + Cm0/Cn) # pitching moment about midpoint
-        Cm -= 0.5 * delta_Cn * (ld - lad) # again about the midpoint
-        xcp = ld/2 - Cm/Cn
-    return Cn, Cm, xcp
+        Cm = Cn * (ld / 2 + Cm0 / Cn)  # pitching moment about midpoint
+        Cm -= 0.5 * delta_Cn * (ld - lad)  # again about the midpoint
+        xcp = ld / 2 - Cm / Cn
+
+    # now we need pitch damping derivatives, from ESDU 90014
+    xcl = 0 # distance of volume centroid from the nose tip
+    F1 = getValue2D(M, xml, "f1.csv")
+    F2 = (1.045 * ld**2 - 0.438 * ld + 8.726) / (ld**2 - 1.009 * ld + 12.71)
+    MqPlusMwdot = -Cna * (F1 * F2 - xml) ** 2 * ld**2
+    Mwdot = Cma * ((Cvf * (xcl - xml) * ld) / ((1 - xml) * dbd**2 - Cvf))
+    Mq = MqPlusMwdot - Mwdot
+
+    return Cn, Cm, xcp, Mq
