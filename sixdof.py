@@ -1,16 +1,11 @@
 # imports
-import os
-
-script_path = os.path.abspath(__file__)
-script_dir = os.path.dirname(script_path)
-os.chdir(script_dir)
 import numpy as np
 import quaternion
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
 from Atmosphere2 import *
-from Rocket2 import *
+from Rocket import *
 
 # set default style
 plt.style.use("seaborn-v0_8-bright")
@@ -22,6 +17,7 @@ tracked_dict = {}  # stores {time: tracked values} pairs
 logger = [1e-6]  # to prevent division by zero errors
 eulerLogger = [[0, 0, 0]]
 
+<<<<<<< Updated upstream:6DOF.py
 
 # other constants
 m_dry = 9.74  # kg - still with the motor casing
@@ -53,6 +49,9 @@ Cl_max_canards = 1.2  # maximum lift coefficient of the canards, assumed at 45 d
 
 # Rockets
 Rocket = None  # Rocket(5, 0.1)
+=======
+# TODO: multi-stage rockets, put the data like mass etc. in an array with one element per stage
+>>>>>>> Stashed changes:sixdof.py
 
 
 # other functions
@@ -106,6 +105,7 @@ def interpolate_thrust(t, thrust_data):
     return thrust1 + (thrust2 - thrust1) * (t - t1) / (t2 - t1)
 
 
+<<<<<<< Updated upstream:6DOF.py
 def CoP(Rocket, mach, alpha):  # TODO: this can be calculated using barrowman's method
     """This function returns the distance from the thrust vector to the pressure vector."""
     # OLD CODE:
@@ -126,13 +126,33 @@ def dragCoef(mach, alpha):  # TODO: with the new sim this can be calculated in a
         )  # valid for 0-0.8 mach, from openrocket sim TODO: make this more realistic at transonic speeds
     Cd = (
         1.37 * np.sin(alpha) ** 4 + Cd1**2 * np.cos(alpha) ** 4
+=======
+def CoP(mach, alpha, powerOn, Rocket):  # TODO: this can be calculated using barrowman's method
+    """This function returns the distance from the thrust vector to the pressure vector."""
+    if powerOn:
+        CoP = 1.545 - 0.2771 * mach
+    else:
+        CoP = 1.175 + 0.1687 * mach
+    return Rocket.rocketLength - CoP  # crude approximation from openrocket sims
+
+
+def dragCoef(mach, alpha, Re, Rocket):  # this is ONLY for the body, not the fins or canards
+    CdV = Rocket.evaluateRocketCDV(mach, Re)
+    Cd1 = CdV * Rocket.topA / Rocket.volume ** (2/3)
+    Cd = (
+        Rocket.Cd_cyl * np.sin(alpha) ** 2 + Cd1**2 * np.cos(alpha) ** 2
+>>>>>>> Stashed changes:sixdof.py
     ) ** 0.5  # when the rocket is at an angle, there is a side component of drag
     # TODO: use separationAngle to find the angle of attack at which flow separation occurs, and use this to find a higher Cd
     return Cd
 
 
 # main functions
+<<<<<<< Updated upstream:6DOF.py
 def recalculate(t, state, dt, turb):
+=======
+def flightUpdate(t, state, dt, turb, Rocket):
+>>>>>>> Stashed changes:sixdof.py
     """This function returns the derivatives of the state vector which is input. This can then be used to solve the ODEs for the next time step.''
     state = [r, dr, q, w, m] --> [dr, ddr, dq, dw, dm]
     r = position vector (3x1)
@@ -142,8 +162,42 @@ def recalculate(t, state, dt, turb):
     m = mass (scalar)
     initialCall is a boolean which is True if this is the first time the function is called for this time step, and used to find old values
     """
+<<<<<<< Updated upstream:6DOF.py
     is_wind = True
 
+=======
+
+    # get the rocket's properties
+    m_dry = Rocket.m_dry
+    m_wet = Rocket.m_wet
+    CG_dry = Rocket.CG_dry
+    Isp = Rocket.Isp
+    Cd_cyl = Rocket.Cd_cyl
+    radius = Rocket.rocketRadius
+    length = Rocket.rocketLength
+    CG_tank = Rocket.CG_tank
+    topA = Rocket.topA
+    sideA = Rocket.sideA
+    I_dry = Rocket.I_dry
+    I_fuel = Rocket.I_fuel
+    # canardArea = Rocket.canardArea
+    # canardNumber = Rocket.canardNumber
+    # canardArm = Rocket.canardArm
+    finArm = Rocket.finArm
+    sideFinsArea = Rocket.finArea
+    finArea = Rocket.finArea
+    finNumber = Rocket.finNumber
+    Cl_max_fins = Rocket.Cl_max_fins
+    # Cl_max_canards = Rocket.Cl_max_canards
+    launchRailLength = Rocket.launchRailLength
+    launchRailAngle = Rocket.launchRailAngle
+    launchRailDirection = Rocket.launchRailDirection
+    chuteCd = Rocket.chuteCD
+    chuteArea = Rocket.chuteArea
+    chuteMargin = Rocket.chuteMargin
+
+    is_wind = False
+>>>>>>> Stashed changes:sixdof.py
     # Unpack the state vector
     r = state[0:3]
     dr = state[3:6]
@@ -162,12 +216,12 @@ def recalculate(t, state, dt, turb):
     diff_r = dr
 
     # get atmospheric properties for the current altitude
-    env.atmosphere(r[2], dr[2] * dt)  # update the atmosphere
+    env.atmosphere(r[2])  # update the atmosphere
 
     # derivative of the velocity vector requires the forces acting on the rocket
     # Thrust - to get the direction we need to convert the quaternion to a rotation matrix
     direction = quaternion.as_rotation_matrix(q).dot(np.array([0, 0, 1]))  # direction of the rocket
-    T = interpolate_thrust(t, thrust_data) * direction / np.linalg.norm(direction)  # thrust vector
+    T = interpolate_thrust(t, Rocket.thrust_data) * direction / np.linalg.norm(direction)  # thrust vector
     # Drag
     # wind
     # get the index we need in the turbulence data
@@ -178,19 +232,44 @@ def recalculate(t, state, dt, turb):
     vWind = vWind + (turb[1][i] * totalSpeed)  # add turbulence
     wWind = turb[2][i] * totalSpeed * 0.1
     wind = np.array([uWind, vWind, wWind])
+<<<<<<< Updated upstream:6DOF.py
     if is_wind == False:
         wind = np.array([0, 0, 0])
 
     dr_wind = dr - wind
     # cross-sectional area, where alpha is the angle between rocket direction and velocity vector
+=======
+    if not is_wind:
+        wind = np.array([-np.cos(launchRailDirection), np.sin(launchRailDirection), 0]) * 4
+    dr_wind = dr - wind
+
+    # check for chute deployment and on rail
+    on_rail = dr[2] > 0 and r[2] < launchRailLength * np.cos(launchRailAngle)
+    chute_deployed = dr[2] < -10 and np.linalg.norm(T) < 1 # if the rocket is falling and the motor is off
+        
+    # get the angle of attack
+>>>>>>> Stashed changes:sixdof.py
     if np.dot(dr, direction) == 0:
         alpha = 0
     else:
         alpha = np.arccos(np.dot(dr_wind, direction / np.linalg.norm(dr_wind)))
+<<<<<<< Updated upstream:6DOF.py
     mach = np.linalg.norm(dr_wind) / np.sqrt(1.4 * 287 * env.temperature)  # mach number
     Cd = dragCoef(mach, alpha)  # drag coefficient
     rho = env.density
     D_translate = -0.5 * rho * Cd * topA * np.linalg.norm(dr_wind) * dr_wind
+=======
+    mach = np.linalg.norm(dr_wind) / env.a  # mach number
+    Re = env.density * np.linalg.norm(dr_wind) * Rocket.rocketLength / env.mu + 10 # reynolds number
+    Cd = dragCoef(mach, alpha, Re, Rocket)  # drag coefficient
+    rho = env.density
+    if chute_deployed:
+        refArea = chuteArea
+        D_translate = -0.5 * rho * chuteCd * chuteArea * np.linalg.norm(dr_wind) * dr_wind
+    else:
+        refArea = topA * np.cos(alpha) ** 2 + (sideA + sideFinsArea) * np.sin(alpha) ** 2  # reference area
+        D_translate = -0.5 * rho * Cd * topA * np.linalg.norm(dr_wind) * dr_wind # do I use refArea here?
+>>>>>>> Stashed changes:sixdof.py
     D_rotate = np.array([0, 0, 0])
     D = D_translate + D_rotate
     on_rail = dr[2] > 0 and r[2] < launchRailLength * np.cos(launchRailAngle)
@@ -207,6 +286,7 @@ def recalculate(t, state, dt, turb):
 
     # Inertia tensor and moment
     I = (
+<<<<<<< Updated upstream:6DOF.py
         Ilr_dry
         + m_dry * np.array([[(Rt - Rt_dry) ** 2, 0, 0], [0, (Rt - Rt_dry) ** 2, 0], [0, 0, 0]])
         + (m - m_dry)
@@ -218,6 +298,29 @@ def recalculate(t, state, dt, turb):
     Rp = Rt - Rpt
     M_forces = np.cross(T, Rt * direction) + np.cross(
         D + L, Rp * direction
+=======
+        I_dry
+        + m_dry * np.array([[(CG - CG_dry) ** 2, 0, 0], [0, (CG - CG_dry) ** 2, 0], [0, 0, 0]])
+        + (m - m_dry)
+        / (m_wet - m_dry)
+        * (I_fuel + (m - m_dry) * np.array([[(CG - CG_tank) ** 2, 0, 0], [0, (CG - CG_tank) ** 2, 0], [0, 0, 0]]))
+    )  # TODO: openrocket seems to disagree with this?
+    # centre of pressure moves too - but this is more complicated
+    if np.linalg.norm(T) <= 1: # power off / power on drag
+        CP = CoP(mach, alpha, False, Rocket)  # distance from thrust location to pressure vector
+    else:
+        CP = CoP(mach, alpha, True, Rocket)
+    CPold = CP
+    Rocket.evaluateRocketCP()
+    CP = Rocket.rocketCPPos
+    if chute_deployed:
+        Kn = chuteMargin
+    else:
+        Kn = CP - CG
+    # TODO: add fin drag moment (this is probably the main reason the openrocket sims are different)
+    M_forces = np.cross(T, (length - CG) * direction) + np.cross(
+        D + L, Kn * direction
+>>>>>>> Stashed changes:sixdof.py
     )  # moment - thrust contribution is currently zero but this supports TVC
 
     # Damping
@@ -233,14 +336,14 @@ def recalculate(t, state, dt, turb):
     vRocket = np.dot(dr_wind, direction) * direction
     incidence = np.arctan(np.linalg.norm(pw) * finArm / np.linalg.norm(vRocket))
     Cl_fins = Cl_max_fins * np.sin(incidence)  # TODO: find a better way to calculate this, this is awful
-    Cl_canards = Cl_max_canards * np.sin(incidence + settingAngle)
+    #Cl_canards = Cl_max_canards * np.sin(incidence + settingAngle)
     # moment from the rotation of the body
     M_damping_roll = 0.5 * rho * finArea * finArm * Cl_fins * np.linalg.norm(vRocket) * vRocket
     M_damping_pitch = -eta / 4 * ((length - Rt) ** 4 - Rt**4) - (
         0.5 * rho * Cd_fins * sideFinsArea * Rt**3 * np.linalg.norm(pw) * pw
     )
-    M_canards = 0.5 * rho * canardArea * canardArm * Cl_canards * np.linalg.norm(vRocket) * vRocket
-    M = M_forces + M_damping_roll + M_damping_pitch + M_canards
+    #M_canards = 0.5 * rho * canardArea * canardArm * Cl_canards * np.linalg.norm(vRocket) * vRocket
+    M = M_forces + M_damping_roll + M_damping_pitch# + M_canards
     # force from the rotation of the body
     D_damping = -eta / 3 * ((length - Rt) ** 3 - Rt**3)
     D = D + D_damping
@@ -251,8 +354,15 @@ def recalculate(t, state, dt, turb):
     diff_w = np.linalg.inv(I).dot(M)
 
     # derivative of the mass
-    diff_m = np.array([-(interpolate_thrust(t, thrust_data) / (env.g * Isp))])
+    diff_m = np.array([-(interpolate_thrust(t, Rocket.thrust_data) / (env.g * Isp))])
 
+<<<<<<< Updated upstream:6DOF.py
+=======
+    # derivative of the quaternion - used to apply the angular velocity to the direction
+    w_quat = np.quaternion(0, w[0], w[1], w[2])  # angular velocity as a quaternion
+    diff_q = quaternion.as_float_array(0.5 * w_quat * q)
+
+>>>>>>> Stashed changes:sixdof.py
     if on_rail:  # if the rocket is on the launch rail
         diff_w = np.array([0, 0, 0])  # prevent rotation
         diff_q = np.array([0, 0, 0, 0])  # prevent rotation
@@ -271,6 +381,7 @@ def recalculate(t, state, dt, turb):
 
 
 # using my own solver so it goes in order of increasing time
+<<<<<<< Updated upstream:6DOF.py
 
 
 def RK4(state, t, dt, turb):  # other methods can be used but this is a good start
@@ -282,6 +393,17 @@ def RK4(state, t, dt, turb):  # other methods can be used but this is a good sta
     k2, _ = recalculate(t + 0.5 * dt, state + 0.5 * dt * k1, dt, turb)
     k3, _ = recalculate(t + 0.5 * dt, state + 0.5 * dt * k2, dt, turb)
     k4, _ = recalculate(t + dt, state + dt * k3, dt, turb)
+=======
+def RK4(state, t, dt, turb, Rocket):  # other methods can be used but this is a good start
+    """This function uses the 4th order Runge-Kutta method to solve the ODEs for the next time step."""
+    # calculate the derivatives of the state vector
+    k1, trackedValues = flightUpdate(
+        t, state, dt, turb, Rocket
+    )  # dt as the 3rd argument is only used for calculating rates, not part of the RK4 method
+    k2, _ = flightUpdate(t + 0.5 * dt, state + 0.5 * dt * k1, dt, turb, Rocket)
+    k3, _ = flightUpdate(t + 0.5 * dt, state + 0.5 * dt * k2, dt, turb, Rocket)
+    k4, _ = flightUpdate(t + dt, state + dt * k3, dt, turb, Rocket)
+>>>>>>> Stashed changes:sixdof.py
 
     # calculate the next state
     state = state + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
@@ -308,7 +430,7 @@ def smooth_angles(angles):
     return smoothed_angles
 
 
-def main():
+def simulate(Rocket):
     """This function runs the simulation."""
 
     # wind
@@ -316,19 +438,27 @@ def main():
     global env
     env = Environment()
     env.getForecast()  # this must be done before the simulation starts - could do it in __init__
+<<<<<<< Updated upstream:6DOF.py
     turb = env.getTurbulence(1000, t_end + 1)
+=======
+    turb = env.getTurbulence(1000, t_end * 2)
+
+    #set up the rocket for the simulation
+    Rocket.thrust_data = read_thrust_curve("BiProp.eng", Rocket.m_wet * env.g)
+    Rocket.evaluateFinProperties()
+>>>>>>> Stashed changes:sixdof.py
 
     # Initial conditions
     r = np.array([0, 0, 0])
     dr = np.array([0, 0, 0])
-    alpha = launchRailAngle  # angle of the rocket from the vertical (rad)
+    alpha = Rocket.launchRailAngle  # angle of the rocket from the vertical (rad)
     q_quat = quaternion.from_rotation_vector(
-        np.array([alpha * np.sin(launchRailDirection), alpha * np.cos(launchRailDirection), 0])
+        np.array([alpha * np.sin(Rocket.launchRailDirection), alpha * np.cos(Rocket.launchRailDirection), 0])
     )
     # make sure roll is zero
     q = quaternion.as_float_array(q_quat)
     w = np.array([0, 0, 0])
-    m = np.array([m_wet])  # dry mass
+    m = np.array([Rocket.m_wet])  # dry mass
 
     # instantiate the initial state vector
     state = np.concatenate((r, dr, q, w, m), axis=0)
@@ -338,8 +468,13 @@ def main():
     t = 0  # initial time
 
     # using RK4
+<<<<<<< Updated upstream:6DOF.py
     while t < t_end and state[2] >= 0:
         state = RK4(state, t, dt, turb)
+=======
+    while t < t_end and state[2] >= 0 and state[5] >= -2:
+        state = RK4(state, t, dt, turb, Rocket)
+>>>>>>> Stashed changes:sixdof.py
         print(round(t, 2), "seconds", end="\r")
         t += dt
 
@@ -507,7 +642,11 @@ def main():
 
     figManager = plt.get_current_fig_manager()
     figManager.window.showMaximized()
+<<<<<<< Updated upstream:6DOF.py
 
 
 if __name__ == "__main__":
     main()
+=======
+    plt.show()
+>>>>>>> Stashed changes:sixdof.py

@@ -49,6 +49,7 @@ class Environment:
         self.density = 1.225
         self.temperature = 288.15
         self.a = np.sqrt(self.gamma * self.R * self.temperature)
+        self.mu = 1.458 * 10 ** -6 * (self.temperature ** 1.5) / (self.temperature + 110.4)
 
         # Wind Simulation Parameters
         self.deltaTime = 0.05  # openRocket recommends 0.05s. Can be different from the simulation timestep
@@ -58,8 +59,8 @@ class Environment:
         self.modelAtmo = False
 
         # Wind Parameters
-        self.windSpeed = 8  # at 10m altitude. TODO: allow for more complex user-defined wind models
-        self.windDirection = 120
+        self.windSpeed = 0  # at 10m altitude. TODO: allow for more complex user-defined wind models
+        self.windDirection = np.pi/3
         self.turbulenceIntensity = 0.15  # typically 0.1-0.2
         self.z0 = 0.001
         self.z1 = 1000 * (self.z0**0.18)
@@ -191,7 +192,7 @@ class Environment:
         # Basic ISA Atmospheric Model for now, assume constant g (geopotential)
 
         # Finding Lapse Rate (K/m)
-        if altitude < 0:
+        if altitude < -1:
             lapseRate = 0
             # raise Exception("Rocket disappeared.")
         elif 0 <= altitude <= 11000:
@@ -349,7 +350,37 @@ class Environment:
             # interpolate temperature
             temperature = np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 3])
             # interpolate pressure
+<<<<<<< Updated upstream
             pressure = np.interp(altitude, self.upperLevelWinds[:, 0], self.pressureList) * 100  # Pa
+=======
+            pressureList = [
+                1000,
+                975,
+                950,
+                925,
+                900,
+                850,
+                800,
+                700,
+                600,
+                500,
+                400,
+                300,
+                250,
+                200,
+                150,
+                100,
+                70,
+                50,
+                30,
+            ]  # hPa
+            # sometimes the code doesnt work because of the weather
+            # as a result, the interpolation fails
+            if len(self.upperLevelWinds[:, 0]) != len(pressureList):
+                # pad the shorter array with leading zeros
+                pressureList = np.pad(pressureList, (len(self.upperLevelWinds[:, 0]) - len(pressureList), 0), "constant")
+            pressure = np.interp(altitude, self.upperLevelWinds[:, 0], pressureList) * 100  # Pa
+>>>>>>> Stashed changes
             return temperature, pressure
 
 
