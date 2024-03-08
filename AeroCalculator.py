@@ -51,9 +51,9 @@ def getValue3D(x, y, z, filename):
     return val[0]
 
 
-def getAeroParams(M, alpha, T, a, Rocket):
+def getAeroParams(M, alpha, T, a, Rocket=None):
     """Gets aero parameters of the rocket (force and moment)
-    M:      Mach number
+    M:      M number
     alpha:  angle of attack in degrees
     T:      temperature in K
     a:      speed of sound in m/s
@@ -71,19 +71,30 @@ def getAeroParams(M, alpha, T, a, Rocket):
     Cpl = 0.651  # for haack
     Ccl = 1.239  # for haack
 
+    # rocket geometry
     lfd = 3  # lf/D, length of nose cone to rocket diameter ratio
     lcd = 10  # lc/D, length of rocket body to rocket diameter ratio
-    lad = 1  # la/D, length of boattail to rocket diameter ratio
+    lad = 0.8  # la/D, length of boattail to rocket diameter ratio
     dbd = 0.8  # db/D, boattail diameter ratio
     L = 4.7  # length of rocket in m
+    D = 0.2  # diameter of rocket in m
+
+    # fin geometry
+    sweep = 12  # degrees, mid-chord
+    rcd = 1.1  # root chord to diameter ratio
+    tcd = 0.42  # tip chord to diameter ratio
+    spand = 2.5  # tip to tip span to diameter ratio
+    gapd = 0.75  # gap between fins to diameter ratio
+    led = 8.7  # distance from nose to leading edge of fin to diameter ratio
 
     # get flow parameters
     ld = lfd + lcd
-    xm = L / 2 # TODO: this does not need to be half the length
+    xm = L / 2  # TODO: this does not need to be half the length
     xml = xm / L
     mu = 1.458 * 10**-6 * (T**1.5) / (T + 110.4)
-    Re = 1.225 * a * (L / ld) / mu
+    Re = 1.225 * a * D / mu
     logR = log10(Re)  # used as the ESDU graph is logaritmic
+    beta = abs(M**2 - 1) ** 0.5
 
     # interpolating from ESDU 89008
     Cna_l = getValue2D(M, lfd, "inviscid.csv")
@@ -100,7 +111,7 @@ def getAeroParams(M, alpha, T, a, Rocket):
     delta_Cm0a_d = -4 * dStarL * ld**2
     delta_Cm0a_f = -2 * Cf * ld**2
     Cm0a = k * Cna_l * (CmCn + delta_CmCn) + delta_Cm0a_d + delta_Cm0a_f  # about the nose
-    Cma = 0
+
     # Cnc from ESDU 89014
     Cnc = getValue2D(M, alpha, "vortexGeneration.csv")
 
@@ -109,6 +120,7 @@ def getAeroParams(M, alpha, T, a, Rocket):
     Cn = Cna * sin(alpha) * cos(alpha) + 4 / pi * ld * Cpl * Cnc
     Cm0 = Cm0a * sin(alpha) * cos(alpha) - 2 / pi * ld**2 * Cpl * Ccl * Cnc
     Cma = Cna * (xml * ld) + Cm0a
+    Cm = Cn * (xml * ld) + Cm0  # pitching moment about midpoint
 
     # modifications due to boattail, from ESDU 87033
     A = -1.3 * lad + 6.35 * lad - 7.85
@@ -119,20 +131,182 @@ def getAeroParams(M, alpha, T, a, Rocket):
     delta_Cdc = -(2 + tanh(1.5 * M * sin(alpha) - 2.4)) * lad * (1 - dbd)
     delta_Cn = delta_Cna * sin(alpha) * cos(alpha) * (1 - (sin(alpha) ** 0.6)) + delta_Cdc * (sin(alpha) ** 2)
     Cn += delta_Cn
+    # we don't modify Cm as the fins affect it instead (trust ESDU)
     if alpha == 0:  # avoid division by zero
         Cm = 0
-        xcp = 0
+        xcp = -Cm0a / Cna
     else:
-        Cm = Cn * (ld / 2 + Cm0 / Cn)  # pitching moment about midpoint
-        Cm -= 0.5 * delta_Cn * (ld - lad)  # again about the midpoint
-        xcp = ld / 2 - Cm / Cn
+        xcp = xml * ld - Cm / Cn
 
-    # now we need pitch damping derivatives, from ESDU 90014
-    xcl = 0 # distance of volume centroid from the nose tip
-    F1 = getValue2D(M, xml, "f1.csv")
-    F2 = (1.045 * ld**2 - 0.438 * ld + 8.726) / (ld**2 - 1.009 * ld + 12.71)
-    MqPlusMwdot = -Cna * (F1 * F2 - xml) ** 2 * ld**2
+    # get fin parameters (ESDU 91004 Appendix)
+    lam = tcd / rcd
+    sf = 0.5 * (tcd + rcd) * (spand - gapd)  # * D^2
+    AR = (spand - gapd) ** 2 / sf
+    back = AR * tan(radians(sweep))  # distance swept back at mid-chord
+    betaAR = beta**0.5 * AR
+
+    # get fin lift-curve slope etc. from ESDU 70011/70012
+    if M <= 1:
+        Cna_fin = AR * getValue3D(back, betaAR, lam, "finSubsonic.csv")
+        xOverC = getValue3D(lam, betaAR, back, "finCentreSubsonic.csv")
+    else:
+        Cna_fin = AR * getValue3D(back, betaAR, lam, "finSupersonic.csv")
+        xOverC = getValue3D(lam, betaAR - back, back, "finCentreSupersonic.csv")
+    xOverD = xOverC * rcd / (2 * (1 + lam + lam**2)) * (3 * (1 + lam))  # TODO: check this?
+    xfl = (led + xOverD) / ld  # distance from nose to x_ac
+
+    # fin interference (this bit is really annoying - see ESDU S.01.03.01)
+    r = 0.5 * D
+    s = spand * D / 2
+    Kwb = (
+        (2 / pi)
+        * (
+            (1 + r**4 / s**4) * (0.5 * arctan(0.5 * (s / r - r / s)) + pi/4)
+            - (r**2 / s**2) * ((s / r - r / s) + 2 * arctan(r / s))
+        )
+        / (1 - r / s) ** 2
+    )
+    # the following is used to determine the shocks on the fin
+    shockParam = betaAR * (1 + lam) * (tan(radians(sweep)) / beta**0.5 + 1)
+    if shockParam < 4:
+        # this is the subsonic case, there is only one equation
+        Kbw = (1 + r / s) ** 2 - Kwb
+    else:
+        # define a load of dimensionless parameters to make the equation simpler
+        pB = beta**-0.5 / tan(radians(sweep))  # B
+        pD = 2 * r * beta**0.5 / (rcd * D)  # D
+        pP = (ld - rcd - led) * D / (2 * rcd * beta**0.5)  # P
+        pP = min(pP, 1)  # P is limited to 1
+        pR = pP + 1 / pD  # R
+        # subsonic LE (B < 1)
+        if pB < 1:
+            if pR < 1:
+                Kbw = ((16 * pB**0.5 * pD) / (pi * (pB + 1))) * (
+                    ((pB**1.5 / (pD**2 * (1 + pB))) * (((pB + (1 + pB) * pP * pD) / pB) ** 0.5) - 2)
+                    - (pB / (1 + pB)) * pD**-0.5 * (pB * pR + pP) ** 1.5
+                    + pB * (1 + pB) * pR**2 * arctan(1 / (pD * (pB * pR + pP))) ** 0.5
+                )
+            else:  # what even is this lol
+                Kbw = ((16 * pB**0.5 * pD) / (pi * (pB + 1))) * (
+                    ((pB**1.5 / (pD**2 * (1 + pB))) * (((pB + (1 + pB) * pP * pD) / pB) ** 0.5) - 2)
+                    - (pB / (1 + pB)) * pD**-0.5 * (pB * pR + pP) ** 1.5
+                    + pB * (1 + pB) * pR**2 * arctan(1 / (pD * (pB * pR + pP))) ** 0.5
+                ) + ((16 * pB**0.5 * pD) / (pi * (pB + 1))) * (
+                    ((pB * pR + 1) * ((pR - 1) * (pB * pR + 1)) ** 0.5)
+                    - (pB + 1) / (pB**0.5) * arctanh((pB * pR - pB) / (pB * pR + 1)) ** 0.5
+                    - pB * (1 + pB) * pR**2 * arctan((pR - 1) / (pB * pR + 1)) ** 0.5
+                )
+        else:  # supersonic LE (B > 1)
+            if pR < 1:
+                Kbw = (
+                    (8 * pD)
+                    / (pi * (pB**2 - 1) ** 0.5)
+                    * (
+                        (-pB / (1 + pB)) * (pB * pR + pP) ** 2 * arccos((pR + pB * pP) / (pB * pR + pP))
+                        + ((pB * (pB**2 - 1) ** 0.5) / (pD**2 * (1 + pB))) * ((1 + 2 * pP * pD) ** 0.5 - 1)
+                        - (pB**2) / (pD**2 * (1 + pB)) * arccos(1 / pB)
+                        + (pB * pR**2 * (pB**2 - 1) ** 0.5 * arccos(pP / pR))
+                    )
+                )
+            else:
+                Kbw = (
+                    (8 * pD)
+                    / (pi * (pB**2 - 1) ** 0.5)
+                    * (
+                        (-pB / (1 + pB)) * (pB * pR + pP) ** 2 * arccos((pR + pB * pP) / (pB * pR + pP))
+                        + ((pB * (pB**2 - 1) ** 0.5) / (pD**2 * (1 + pB))) * ((1 + 2 * pP * pD) ** 0.5 - 1)
+                        - (pB**2) / (pD**2 * (1 + pB)) * arccos(1 / pB)
+                        + (pB * pR**2 * (pB**2 - 1) ** 0.5 * arccos(pP / pR))
+                    )
+                ) + ((8 * pD) / (pi * (pB**2 - 1) ** 0.5)) * (
+                    (pB * pR + 1) ** 2 * arccos((pR + pB) / (pB * pR + 1))
+                    - (pB**2 - 1) ** 0.5 * arccosh(pR)
+                    + pB * pR**2 * (pB**2 - 1) ** 0.5 * (arcsin(1 / pR) - pi / 2)
+                )
+    # convert to the correct form
+    Kbw /= (beta * Cna_fin * (1 + lam) * (s/r - 1))    
+
+    # now we need pitch damping derivatives, from ESDU 91004
+    xcl = xml  # TODO: distance of volume centroid from the nose tip
+    # F1 = getValue2D(M, xml, "f1.csv")  # TODO: I literally made the subsonic numbers up
+    # F2 = (1.045 * ld**2 - 0.438 * ld + 8.726) / (ld**2 - 1.009 * ld + 12.71)
+    MqPlusMwdot = -Cna * (1 - xml) ** 2 * ld**2 # use F1*F2-xml if we consider boattail effects
     Mwdot = Cma * ((Cvf * (xcl - xml) * ld) / ((1 - xml) * dbd**2 - Cvf))
-    Mq = MqPlusMwdot - Mwdot
 
-    return Cn, Cm, xcp, Mq
+    # now incorporate the fin effects
+    Sf = (tcd + rcd) * (spand - gapd) * D**2 / 4
+    Sref = pi * D**2 / 4
+    Mq = MqPlusMwdot - Mwdot - Cna_fin * (Kwb+Kbw) * (Sf/Sref) * (xfl-xml)**2 * ld**2
+
+    # drag
+    # calculation of Cdp (profile drag coefficient) - applies for small incidence too (<3deg)
+    # profile drag equations from ESDU 78019
+
+    # some nice geometry stuff
+    # Cv is the ratio of the volumes of the rocket and its enclosing cylinder
+    # Cs is the ratio of the surface area of the rocket to the surface area of its enclosing cylinder
+    Cva = 1/3 * (1 + dbd + dbd**2)
+    Cv = lcd / (ld + lad) + Cva * (lad / (ld + lad)) + Cvf * (lfd / (ld + lad))
+    Csa = 0.5 * (1 + dbd) * (1 + 0.25 * ((1 - dbd) / lad) ** 2) ** 0.5
+    Csf = (0.2642 * lfd**-2 + 0.6343 * lfd**-1 + 2.214) / (lfd**-1 + 3.402)
+    Cs = lcd / (ld + lad) + Csa * (lad / (ld + lad)) + Csf * (lfd / (ld + lad))
+
+    Fm1 = 0.18 * M ** 2 / (arctan(0.4219 * M)) ** 2
+    Fm2 = (1 + 0.178 * M ** 2) ** -0.702 / Fm1
+    B = 2.62105 - 0.0042167 * log10(Fm2 * Re)
+    Cf0 = 0.455 / (Fm1 * (log10(Fm2 * Re)) ** B)
+    lfOverL = lfd / ld
+
+    # skin friction stuff
+    xtrOverL = 0.95 * lfOverL # transition to turbulent flow, distance from nose divided by rocket length
+    F1 = 41.1463 * Re ** -0.377849
+    g = 0.71916 - 0.0164 * log10(Re)
+    h = 0.66584 + 0.02307 * log10(Re)
+    F2 = 1.1669 * log10(Re) ** -3.0336 - 0.001487
+    Cf = Cf0 * ((1 - xtrOverL + F1 * xtrOverL ** g) ** h - F2)
+
+    # other conversion factors
+    Ktr = 1 + 0.36 * xtrOverL - 3.3 * xtrOverL ** 3
+    b = lfOverL * (1 - Cvf)
+    Fm = 1.5 * M ** 2 * (1 + 1.5 * M ** 4)
+    if b < 0.03:
+        Fb = 0
+    elif b < 0.15:
+        Fb = 0.0924 / b + 0.725 * b + 12.2 * b ** 2
+    else:
+        Fb = 1
+    Km = 1 + Fm * Fb * (1/ld) ** 2
+
+    # final calculations
+    CdV_fins = 0
+    CdV_nose = Cf * Ktr * Km * 3.764 * ((1/ld) ** (-1/3) + 1.75 * (1/ld) ** (7/6) + 3.48 * (1/ld) ** (8/3))
+    CdV = CdV_nose + CdV_fins
+    Cdp = CdV * (Cv**(2/3) / (2 * (2*pi*ld)**(1/3) * Cs))
+
+    # TODO: look at ESDU 74013, B.S.02.03.01 (very important!)
+    # TODO: look at ESDU 76033/78041/79022 to add base drag
+    # TODO: extend ESDU 78019 for supersonic drag - referemce does wave + profile drag?
+    # TODO: Use ESDU 96033 for angle of attack effects
+    # TODO: Use ESDU 02012 for the effect of the jet
+
+    Cdw = 0 # wave drag - use ESDU B.S.02.03.01
+    Cdb = 0 # base drag - use ESDU 76033/78041/79022/02012
+    Cd = Cdp + Cdw + Cdb # Cdf is taken into account in Cdp
+
+    return Cn, Cm, xcp, Mq, Cd
+
+M = 0.8
+alpha = 0.7
+T = 300
+a = 343
+Cn, Cm, xcp, Mq, Cd = getAeroParams(M, alpha, T, a)
+print("M: ", M)
+print("alpha: ", alpha)
+print("T: ", T)
+print("a: ", a)
+print("----------")
+print("Cn: ", Cn)
+print("Cm: ", Cm)
+print("xcp: ", xcp)
+print("Mq: ", Mq)
+print("Cd: ", Cd)
