@@ -1,5 +1,5 @@
 import numpy as np
-from AeroSurfaces import NoseCone, BodyTube, Boattail, Fins
+from AeroSurfaces import NoseCone, BodyTube, Boattail, TrapezoidalFins
 
 
 class Rocket:
@@ -60,7 +60,7 @@ class Rocket:
         return nose
 
     def addBoattail(self, upperRadius, lowerRadius, length, topLocation):
-        boattail = Boattail(self, upperRadius, lowerRadius, rocketRadius, length, topLocation)
+        boattail = Boattail(self, upperRadius, lowerRadius, self.rocketRadius, length, topLocation)
         self.addSurfaces(boattail, position=0)
         self.aerodynamicSurfaces.append(boattail)
         return boattail

@@ -4,12 +4,13 @@ from function import Function
 
 
 class NoseCone:
-    def __init__(self, coneType, length, noseRadius, rocketRadius, shapeParameter):
-        self.type = coneType
+    def __init__(self, coneType, length, noseRadius, material, thickness, mass):
+        self.coneType = coneType
         self.noseLength = length
         self.noseRadius = noseRadius
-        self.rocketRadius = rocketRadius
-        self.shapeParameter = shapeParameter
+        self.material = material
+        self.thickness = thickness
+        self.mass = mass
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
@@ -24,7 +25,7 @@ class NoseCone:
 
         # if self.type == "VonKarman":
         #     self.Xn = 0.5
-        self.Cna = 2 * (self.noseRadius / self.rocketRadius) ** 2 # is this correct?
+        self.Cna = 2 * (self.noseRadius / self.rocketRadius) ** 2  # is this correct?
         if self.type == "Haack":
             self.Xn = self.length / 2 * (1 - (3 * self.shapeParameter / 8))
         elif self.type == "Ogive":
@@ -94,15 +95,32 @@ class NoseCone:
         return None
 
 
-class Fins:
-    def __init__(self, span, rootChord, tipChord, sweep, rootLocation, number, rocketRadius):
-        self.span = span
-        self.rootChord = rootChord
-        self.tipChord = tipChord
-        self.sweep = sweep  # sweep on root chord only
-        self.rootLocation = rootLocation
-        self.number = number
+class TrapezoidalFins:
+    def __init__(
+        self,
+        numberOfFins,
+        finSpan,
+        finRootChord,
+        finMidChord,
+        finTipChord,
+        sweepLength,
+        sweepAngle,
+        rocketRadius,
+        pos,
+        mass,
+        thickness,
+    ):
+        self.span = finSpan
+        self.rootChord = finRootChord
+        self.tipChord = finTipChord
+        self.midChord = finMidChord
+        self.sweepLength = sweepLength  # sweep on root chord only
+        self.sweepAngle = sweepAngle
+        self.rootLocation = pos
+        self.number = numberOfFins
         self.rocketRadius = rocketRadius  # used in fin interference calcs
+        self.mass = mass
+        self.thickness = thickness
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf
@@ -150,19 +168,27 @@ class Fins:
 
 
 class BodyTube:
-    def __init__(self, length):
+    def __init__(self, length, radius, thickness, position, material, mass):
         self.length = length
+        self.radius = radius
+        self.thickness = thickness
+        self.position = position
+        self.material = material
+        self.mass = mass
 
     # aero is not used here, only the length is used to determine the position of boattail
 
 
 class Boattail:
-    def __init__(self, upperRadius, lowerRadius, rocketRadius, length, topLocation):  # conical only
+    def __init__(self, upperRadius, lowerRadius, length, thickness, position, material, mass):  # conical only
         self.upperRadius = upperRadius
         self.lowerRadius = lowerRadius
-        self.rocketRadius = rocketRadius
+        self.upperRadius = upperRadius
         self.length = length
-        self.topLocation
+        self.thickness = thickness
+        self.position = position
+        self.material = material
+        self.mass = mass
 
         # Aerodynamic Parameters
         # reference: https://offwegorocketry.com/userfiles/file/Nose%20Cone%20&%20Fin%20Optimization.pdf

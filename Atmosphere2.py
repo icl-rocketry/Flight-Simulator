@@ -49,18 +49,18 @@ class Environment:
         self.density = 1.225
         self.temperature = 288.15
         self.a = np.sqrt(self.gamma * self.R * self.temperature)
-        self.mu = 1.458 * 10 ** -6 * (self.temperature ** 1.5) / (self.temperature + 110.4)
+        self.mu = 1.458 * 10**-6 * (self.temperature**1.5) / (self.temperature + 110.4)
 
         # Wind Simulation Parameters
-        self.deltaTime = 0.05  # openRocket recommends 0.05s. Can be different from the simulation timestep
-        self.sampleLength = 2
-        self.totalLength = 200
+        self.deltaTime = 0.025  # openRocket recommends 0.05s. Can be different from the simulation timestep
+        self.sampleLength = 20
+        self.totalLength = 20
         self.userWind = False
         self.modelAtmo = False
 
         # Wind Parameters
         self.windSpeed = 0  # at 10m altitude. TODO: allow for more complex user-defined wind models
-        self.windDirection = np.pi/3
+        self.windDirection = np.pi / 3
         self.turbulenceIntensity = 0.15  # typically 0.1-0.2
         self.z0 = 0.001
         self.z1 = 1000 * (self.z0**0.18)
@@ -69,8 +69,8 @@ class Environment:
         self.earthMass = 5.97e24
         self.earthRadius = 6.371e6
         self.G = 6.67e-11
-        self.latitude = 39.478
-        self.longitude = -8.3364
+        self.latitude = 55.05
+        self.longitude = -2.55
 
         # Rocket Parameters
         self.altitudeLast = 0
@@ -226,7 +226,7 @@ class Environment:
         # uses the Kaimal spectrum, returns a time series of turbulence. Only needs to switch at z=30m
         # setup parameters (IEC 1999)
         freq = 20  # max. frequency (Hz)
-        maxFreq = freq**2 * self.deltaTime
+        maxFreq = freq**2 / self.deltaTime
         uBar = []  # set up IFFT inputs
         vBar = []
         wBar = []
@@ -350,9 +350,6 @@ class Environment:
             # interpolate temperature
             temperature = np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 3])
             # interpolate pressure
-<<<<<<< Updated upstream
-            pressure = np.interp(altitude, self.upperLevelWinds[:, 0], self.pressureList) * 100  # Pa
-=======
             pressureList = [
                 1000,
                 975,
@@ -378,9 +375,10 @@ class Environment:
             # as a result, the interpolation fails
             if len(self.upperLevelWinds[:, 0]) != len(pressureList):
                 # pad the shorter array with leading zeros
-                pressureList = np.pad(pressureList, (len(self.upperLevelWinds[:, 0]) - len(pressureList), 0), "constant")
+                pressureList = np.pad(
+                    pressureList, (len(self.upperLevelWinds[:, 0]) - len(pressureList), 0), "constant"
+                )
             pressure = np.interp(altitude, self.upperLevelWinds[:, 0], pressureList) * 100  # Pa
->>>>>>> Stashed changes
             return temperature, pressure
 
 

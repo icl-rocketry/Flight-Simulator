@@ -1,6 +1,6 @@
 import numpy as np
 import Materials as mat
-from utils.function import Function
+from function import Function
 
 # LIST OF MORE COMPONENTS
 # 1. Mass Component - Adds mass to rocket, duh

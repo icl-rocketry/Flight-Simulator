@@ -1,5 +1,5 @@
 import numpy as np
-from AeroSurfaces import NoseCone, BodyTube, BoatTail, TrapezoidalFins
+from AeroSurfaces import NoseCone, BodyTube, Boattail, TrapezoidalFins
 from MoreComponents import MassComponent
 
 
@@ -273,13 +273,13 @@ class Rocket:
 
     # ---------------------------------------------------------------------- ADD AERODYNAMIC SURFACES ----------------------------------------------------------------------#
 
-    def addNose(self, type, length, noseRadius, material, thickness, mass=0):
+    def addNose(self, coneType, length, noseRadius, material, thickness, mass=0):
         """
         Adds nose cone to rocket
         """
 
         nose = NoseCone(
-            type, length, noseRadius, self.rocketRadius, material, thickness, mass
+            coneType, length, self.rocketRadius, material, thickness, mass
         )  # Pass parameters into NoseCone Class
         self.addSurface(nose)  # Add nose cone into rocket, position = 0 as nose is forced to be put at the top
 
@@ -321,8 +321,8 @@ class Rocket:
         if self.bodyTubeAdded == True:
             if position != (self.noseLength + self.bodyTubeLength):
                 position = self.noseLength + self.bodyTubeLength
-            boatTail = BoatTail(
-                upperRadius, lowerRadius, length, self.rocketRadius, thickness, position, material, mass
+            boatTail = Boattail(
+                upperRadius, lowerRadius, length, thickness, position, material, mass
             )
             self.addSurface(boatTail)
         else:
@@ -380,7 +380,7 @@ class Rocket:
 
     # ---------------------------------------------------------------------- ADD OTHER COMPONENTS ----------------------------------------------------------------------#
 
-    def addMassComponet(self, mass, pos):
+    def addMassComponent(self, mass, pos):
         """
         Adds mass component (to shift cgPos)
         mass in kg and pos in m
