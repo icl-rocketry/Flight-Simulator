@@ -285,29 +285,28 @@ def getAeroParams(M, alpha, logR, Rocket):
     CdV = CdV_nose + CdV_fins
     Cdp = CdV * (Cv ** (2 / 3) / (2 * (2 * pi * ld) ** (1 / 3) * Cs))
 
-    # TODO: look at ESDU 74013, B.S.02.03.01 (very important!)
+    # look at B.S.02.03.01 (very important!)
 
     # TODO: look at ESDU 76033/78041/79022 to add base drag
     boattailAngle = degrees(arctan2(1 - dbd, 2))
     if M <= 0.8:
         # Subsonic base drag - ESDU 76033
-        pass
-        #Cdb = getValue2D(dbd, boattailAngle, "baseDragSubsonic.csv")
+        Cdb = getValue2D(dbd, boattailAngle, "baseDragSubsonic.csv")
+        Cd_beta = getValue3D(dbd, boattailAngle, M, "boattailDragSubsonic.csv")
     elif M <= 1.3:
         # Transonic base drag - ESDU 78041
-        
-        pass
+        Cdb = getValue3D(dbd, boattailAngle, M, "baseDragTransonic.csv")
+        Cd_beta = getValue3D(dbd, boattailAngle, M, "boattailDragTransonic.csv")
     else:
         # Supersonic base drag - ESDU 79022
-        pass
+        Cdb = getValue3D(dbd ** 2, boattailAngle, M, "baseDragSupersonic.csv")
+        Cd_beta = 0 # this is accounted for in the wave drag (ESDU B.S.02.03.02)
 
-    # TODO: extend ESDU 78019 for supersonic drag - referemce does wave + profile drag?
-    # TODO: Use ESDU 96033 for angle of attack effects
-    # TODO: Use ESDU 02012 for the effect of the jet
+    F = getValue2D(M, alpha, "angleDrag.csv")  # angle of attack effect on base drag
+    # TODO: Use ESDU 02012 for the effect of the jet - ignore this until we can get exhaust temperature and pressure
 
     Cdw = 0  # wave drag - use ESDU B.S.02.03.01
-    Cdb = 0  # base drag - use ESDU 76033/78041/79022/02012
     Cdwv = 0  # viscous form drag?
-    Cd = Cdp + Cdw + Cdwv + Cdb  # Cdf is taken into account in Cdp
+    Cd = Cdp + Cdw + Cdwv + F * (Cdb + Cd_beta) # Cdf is taken into account in Cdp
 
     return Cn, Cm, xcp, Mq, Cd

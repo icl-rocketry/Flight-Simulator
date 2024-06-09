@@ -35,9 +35,9 @@ if __name__ == "__main__":
         190,  # Isp
     )
     """The table is created using the getAeroParams function and the results are stored in a csv file"""
-    alphaList = [0, 1, 2, 4, 6, 8, 10, 15, 20, 30, 40, 50, 70, 90]
+    alphaList = [0, 1, 2, 5, 10, 15, 20, 30, 40, 60, 90]
     with open("aeroParams.csv", "w") as f:
-        for M in arange(0, 2.05, 0.05):
+        for M in arange(0, 4.1, 0.1):
             # print the mach number considered to 2 decimal places
             print(f"Mach = {M:.2f}", end="\r")
             for alpha in alphaList:
@@ -47,7 +47,7 @@ if __name__ == "__main__":
                     # TODO: Mq doesnt work at M=1, Cd doesnt work at M=0
     # Initialise simulation
     Simulation = sim.Simulator(
-        5,  # launchRailLength
+        9,  # launchRailLength
         5*pi/180,  # launchRailAngle (rad)
         45*pi/180,  # launchRailDirection (rad)
         0,  # windSpeed
