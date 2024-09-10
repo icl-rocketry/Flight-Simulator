@@ -52,14 +52,14 @@ class Environment:
         self.mu = 1.458 * 10**-6 * (self.temperature**1.5) / (self.temperature + 110.4)
 
         # Wind Simulation Parameters
-        self.deltaTime = 0.025  # openRocket recommends 0.05s. Can be different from the simulation timestep
+        self.deltaTime = 0.05  # openRocket recommends 0.05s. Can be different from the simulation timestep
         self.sampleLength = 20
         self.totalLength = 20
         self.userWind = False
         self.modelAtmo = False
 
-        # Wind Parameters
-        self.windSpeed = 0  # at 10m altitude. TODO: allow for more complex user-defined wind models
+        # Wind Parameters - windSpeed and windDirection are only used if userWind is True
+        self.windSpeed = 9  # at 10m altitude. TODO: allow for more complex user-defined wind models
         self.windDirection = np.pi / 3
         self.turbulenceIntensity = 0.15  # typically 0.1-0.2
         self.z0 = 0.001
@@ -74,7 +74,7 @@ class Environment:
 
         # Rocket Parameters
         self.altitudeLast = 0
-        self.rocketVelocity = 100  # this should come from the rocket class but there isn't one yet
+        self.rocketVelocity = 100 # e.g. 20 m/s at 0.05s equals 1m height resolution
 
         # pressure list
         self.pressureList = [
@@ -225,7 +225,8 @@ class Environment:
     def getTurbulence(self, altitude, sampleLength):
         # uses the Kaimal spectrum, returns a time series of turbulence. Only needs to switch at z=30m
         # setup parameters (IEC 1999)
-        freq = 20  # max. frequency (Hz)
+        minFreq = 2  # min. frequency (Hz)
+        freq = 10  # max. frequency (Hz)
         maxFreq = freq**2 / self.deltaTime
         uBar = []  # set up IFFT inputs
         vBar = []
@@ -243,7 +244,7 @@ class Environment:
 
         # calculate the PSD and set it up for IFFT
         self.timeSeries = np.arange(0, sampleLength, self.deltaTime)
-        for f in np.linspace(0, maxFreq, len(self.timeSeries) // 2):
+        for f in np.linspace(minFreq, maxFreq, len(self.timeSeries) // 2):
             PSDu = (4 * Lu / self.rocketVelocity) / ((1 + 70.8 * (f * Lu / self.rocketVelocity) ** 2) ** (5 / 6))
             PSDv = (
                 (4 * Lv / self.rocketVelocity)
@@ -287,7 +288,13 @@ class Environment:
         # get the upper level winds from the Open-Meteo API if a user-defined wind model is not used
         # otherwise, just use the simple user-defined wind model like openRocket does (boring!)
         if self.userWind:
-            data = np.array([[0, self.windSpeed, self.windDirection], [22000, self.windSpeed, self.windDirection]])
+            data = np.array(
+                [
+                    [0, self.windSpeed, self.windDirection, self.temperature],
+                    [22000, self.windSpeed, self.windDirection, self.temperature],
+                ]
+            )
+
         else:
             data = []
             # Setup the Open-Meteo API client with cache and retry on error

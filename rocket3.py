@@ -23,7 +23,7 @@ class Rocket:
         propMass,
         dryInertia,
         propInertia,
-        Isp, # TODO: calculate this from propellant mass and thrust etc.
+        Isp,  # TODO: calculate this from propellant mass and thrust etc.
         canardArea,
         canardPos,
     ):
@@ -45,9 +45,9 @@ class Rocket:
         self.propMass = propMass  # propellant mass (kg)
         self.dryInertia = dryInertia  # dry mass inertia tensor (kg*m^2)
         self.propInertia = propInertia  # wet mass inertia tensor (kg*m^2)
-        self.Isp = Isp # specific impulse of rocket engine (s)
+        self.Isp = Isp  # specific impulse of rocket engine (s)
         self.canardArea = canardArea  # area of canards (m^2)
-        self.canardPos = canardPos # distance from nose to canard centre of pressure (m)
+        self.canardPos = canardPos  # distance from nose to canard centre of pressure (m)
 
     def getGeoParams(self):
         # get nose cone related parameters

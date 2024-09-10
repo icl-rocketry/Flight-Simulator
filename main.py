@@ -26,12 +26,8 @@ if __name__ == "__main__":
         3.93 + 0.35 - 1.0824,  # propCG from nose
         51.431,  # dryMass
         11.5,  # propMass
-        [[58.1, 0, 0],
-         [0, 58.1, 0],
-         [0, 0, 0.231]],  # dryInertia
-        [[0.605, 0, 0],
-         [0, 0.6094, 0],
-         [0, 0, 0.1004]],  # propInertia
+        [[58.1, 0, 0], [0, 58.1, 0], [0, 0, 0.231]],  # dryInertia
+        [[0.605, 0, 0], [0, 0.6094, 0], [0, 0, 0.1004]],  # propInertia
         206,  # Isp
         0.0051,  # canardArea (per canard)
         1.21,  # canardPos
@@ -39,18 +35,18 @@ if __name__ == "__main__":
     """The table is created using the getAeroParams function and the results are stored in a csv file"""
     alphaList = [0, 1, 2, 5, 10, 15, 20, 30, 40, 60, 90]
     with open("aeroParams.csv", "w") as f:
-        for M in arange(0, 1.1, 0.1):
+        for M in arange(0, 1.5, 0.1):
             # print the mach number considered to 2 decimal places
-            print(f"Mach = {M:.2f}", end="\r")
+            print(f"Calculating the rocket's aerodyamic parameters at Mach {M:.1f}", end="\r")
             for alpha in alphaList:
-                for logR in arange(5, 8.5, 0.5):
+                for logR in arange(5, 9.5, 0.5):
                     Cn, Cm, xcp, Mq, Cd = AeroCalculator.getAeroParams(M, alpha, logR, Nimbus)
                     f.write(f"{M},{alpha},{logR},{Cn},{Cm},{xcp},{Mq},{Cd}\n")
-                    # TODO: Mq doesnt work at M=1, Cd doesnt work at M=0
     # Initialise simulation
+    print("\nInitialising simulation")
     Simulation = sim.Simulator(
         12,  # launchRailLength
-        4*pi/180,  # launchRailAngle (rad)
+        4 * pi / 180,  # launchRailAngle (rad)
         0,  # launchRailDirection (rad)
         0,  # windSpeed
         0,  # windDirection
@@ -59,6 +55,7 @@ if __name__ == "__main__":
         100,  # endTime
     )
     # Initialise environment
-    env = sim.Environment() # TODO: allow parameters to go in here, incuding moving windSpeed and windDirection
+    print("Initialising environment")
+    env = sim.Environment()  # TODO: allow parameters to go in here, incuding moving windSpeed and windDirection
     # Run simulation
     sim.simulate(Nimbus, Simulation, env, "NimbusThrustCurve.eng")
