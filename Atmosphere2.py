@@ -276,9 +276,9 @@ class Environment:
 
         # scale to match the standard deviation of 1
         if np.std(u) != 0:
-            u = u / np.std(u)
-            v = v / np.std(v)
-            w = w / np.std(w)
+            u = u / np.std(u) * self.turbulenceIntensity
+            v = v / np.std(v) * self.turbulenceIntensity
+            w = w / np.std(w) * self.turbulenceIntensity
 
         # return the time series
         return np.transpose(u), np.transpose(v), np.transpose(w)
@@ -380,76 +380,3 @@ class Environment:
                 )
             pressure = np.interp(altitude, self.upperLevelWinds[:, 0], pressureList) * 100  # Pa
             return temperature, pressure
-
-
-# Test Code
-if __name__ == "__main__":
-    env = Environment()
-    env.getForecast()  # this must be done before the simulation starts - could do it in __init__
-    uList = []
-    vList = []
-    wList = []
-    uM = []
-    vM = []
-    tList = []
-    t = 0
-    alt = 2  # start at non-zero value to avoid divide by zero errors. This is fine as we will simulate a launch rail
-    steps = 0
-    stepsSince = 0
-    finalCalc = False  # stops turbulence calc once the length scale is constant (above z1)
-    # the following dont really need to be here but python throws an error if they are unbound
-    u = []
-    v = []
-    w = []
-
-    # plot the wind over time, while altitude changes (that makes it really complicated)
-    # this mess will most likely go in the simulation class or similar but it's here for testing purposes now
-    # TODO: see if theres a nice way to smooth the discontinuities from length scale recalculation which doesnt remove the high-frequency content
-    while alt < 600:
-        t += env.deltaTime
-        # every sampleLength seconds, recalculate the turbulence
-        if steps % (env.sampleLength / env.deltaTime) == 0:
-            if alt < env.z1:
-                u, v, w = env.getTurbulence(alt, env.sampleLength)  # get the new time series of wind
-                stepsSince = 0
-            elif not finalCalc:  # get the new (long-lasting) time series of wind
-                u, v, w = env.getTurbulence(alt, env.totalLength)
-                stepsSince = 0
-                finalCalc = True
-
-        tList.append(t)
-        uMean, vMean = env.getUpperLevelWinds(alt)
-        uM.append(uMean)
-        vM.append(vMean)
-        try:
-            totalSpeed = np.sqrt(uMean**2 + vMean**2)
-            uTotal = uMean + (u[stepsSince] * env.turbulenceIntensity * totalSpeed)
-            vTotal = vMean + (v[stepsSince] * env.turbulenceIntensity * totalSpeed)
-            wTotal = w[stepsSince] * totalSpeed * 0.1
-        except IndexError:
-            print(
-                "The time for which the turbulence is generated 'totalLength' is too short, increase it to cover the entire flight."
-            )
-            break
-        alt += env.rocketVelocity * env.deltaTime
-        steps += 1
-        stepsSince += 1
-        env.atmosphere(alt, env.rocketVelocity * env.deltaTime)
-        uList.append(uTotal)
-        vList.append(vTotal)
-        wList.append(wTotal)
-
-    # remove the last items of u,v,w, to make them the same length as t as the last step will be incomplete
-
-    # plot the wind
-    try:
-        plt.plot(tList, uList, label="u")
-        plt.plot(tList, vList, label="v")
-        plt.plot(tList, wList, label="w")
-        plt.legend()
-        plt.xlabel("Time (s)")
-        plt.ylabel("Wind Speed (m/s)")
-        plt.title("Wind Speed vs Time")
-        plt.show()
-    except ValueError:
-        print("The simulation ran into an error and cannot plot the data.")

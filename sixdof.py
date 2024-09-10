@@ -198,24 +198,27 @@ def openRocketCD(mach):
         return Cd
     
 
-def getCanardCL(alpha):
-    # get the lift coefficient of the canards from the NACA0012.csv file
+def getCanardCoeffs(alpha):
+    # get the coefficients of the canards from the NACA0012.csv file
     with open("NACA0012.csv", "r") as file:
         # extract the values from the file
         lines = file.readlines()
         alphas = []
         CLs = []
+        CDs = []
         for line in lines:
             columns = line.split(",")
             alphas.append(float(columns[0]))
             CLs.append(float(columns[1]))
+            CDs.append(float(columns[2]))
         # now interpolate to find the Cd at the current mach number
         CL = np.interp(alpha * 180 / np.pi, alphas, CLs)
-        return CL
+        CD = np.interp(alpha * 180 / np.pi, alphas, CDs)
+        return CL, CD
 
 
 # main functions
-def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
+def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data, windIndex):
     """This function returns the derivatives of the state vector which is input. This can then be used to solve the ODEs for the next time step.''
     state = [r, dr, q, w, m] --> [dr, ddr, dq, dw, dm]
     r = position vector (3x1)
@@ -283,7 +286,7 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     # Drag
     # wind
     # get the index we need in the turbulence data
-    i = int(t / dt)
+    i = int(windIndex)
     uWind, vWind = env.getUpperLevelWinds(r[2])  # get the wind at the current time
     totalSpeed = np.sqrt(uWind**2 + vWind**2)  # empirical factor to convert from wind to gust
     uWind = uWind + (turb[0][i] * totalSpeed)  # add turbulence
@@ -303,7 +306,6 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     rho = env.density
     D_translate = -0.5 * rho * Cd * topA * np.linalg.norm(dr_wind) * dr_wind
     D_rotate = np.array([0, 0, 0])
-
     D = D_translate + D_rotate
     on_rail = dr[2] > 0 and r[2] < launchRailLength * np.cos(launchRailAngle)
     if on_rail:
@@ -320,16 +322,19 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     canardAlpha1 = alpha * np.cos(canardRoll + np.pi / 6)
     canardAlpha2 = alpha * np.cos(canardRoll - np.pi / 6)
     # use NACA0012.csv to get the lift coefficient of the canards (file is in degrees)
-    canardCL1 = getCanardCL(canardAlpha1)
-    canardCL2 = getCanardCL(canardAlpha2)
+    canardCL1, canardCD1 = getCanardCoeffs(canardAlpha1)
+    canardCL2, canardCD2 = getCanardCoeffs(canardAlpha2)
     # get the lmagnitude of the lift force
     magnitudeL = 0.5 * rho * np.linalg.norm(dr_wind)**2 * (canardArea1 * canardCL1 + canardArea2 * canardCL2)
     # get the velocity vector's component perpendicular to the direction vector
     dr_perp = np.dot(dr_wind, direction) * direction / np.linalg.norm(direction) - dr_wind
     # this is the direction of the lift force, so normalise it and multiply by the magnitude
     L = magnitudeL * dr_perp / np.linalg.norm(dr_perp)
+    D_canard = -0.5 * rho * np.linalg.norm(dr_wind) * (canardArea1 * canardCD1 + canardArea2 * canardCD2) * dr_wind
     # Gravity
     G = np.array([0, 0, -m * env.g])
+    # Drag
+    D = D_translate + D_rotate + D_canard
 
     # derivative of the quaternion
     w_quat = np.quaternion(0, w[0], w[1], w[2])  # angular velocity as a quaternion
@@ -359,7 +364,7 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     # derivative of the velocity vector can now be calculated
     diff_dr = 1 / m * (T + D + L + G)  # acceleration
 
-    diff_w = np.linalg.inv(I).dot(M)
+    diff_w = np.linalg.inv(I).dot(M - (np.cross(w, I.dot(w))))  # angular acceleration
 
     # derivative of the mass
     diff_m = np.array([-(interpolate_thrust(t, thrust_data) / (env.g * Isp))])
@@ -384,16 +389,16 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
 
 
 def RK4(
-    state, t, dt, turb, env, Rocket, Simulation, thrust_data
+    state, t, dt, turb, env, Rocket, Simulation, thrust_data, windIndex
 ):  # other methods can be used but this is a good start
     """This function uses the 4th order Runge-Kutta method to solve the ODEs for the next time step."""
     # calculate the derivatives of the state vector
     k1, trackedValues = recalculate(
-        t, state, dt, turb, env, Rocket, Simulation, thrust_data
+        t, state, dt, turb, env, Rocket, Simulation, thrust_data, windIndex
     )  # dt as the 3rd argument is only used for calculating rates, not part of the RK4 method
-    k2, _ = recalculate(t + 0.5 * dt, state + 0.5 * dt * k1, dt, turb, env, Rocket, Simulation, thrust_data)
-    k3, _ = recalculate(t + 0.5 * dt, state + 0.5 * dt * k2, dt, turb, env, Rocket, Simulation, thrust_data)
-    k4, _ = recalculate(t + dt, state + dt * k3, dt, turb, env, Rocket, Simulation, thrust_data)
+    k2, _ = recalculate(t + 0.5 * dt, state + 0.5 * dt * k1, dt, turb, env, Rocket, Simulation, thrust_data, windIndex)
+    k3, _ = recalculate(t + 0.5 * dt, state + 0.5 * dt * k2, dt, turb, env, Rocket, Simulation, thrust_data, windIndex)
+    k4, _ = recalculate(t + dt, state + dt * k3, dt, turb, env, Rocket, Simulation, thrust_data, windIndex)
 
     # calculate the next state
     state = state + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
@@ -452,10 +457,12 @@ def simulate(Rocket, Simulation, env, engineFile):
     state = np.concatenate((r, dr, q, w, m), axis=0)
 
     # using RK4
+    windIndex = 0
     while t < t_end and state[2] >= -0.01:
-        state = RK4(state, t, dt, turb, env, Rocket, Simulation, thrust_data)
+        state = RK4(state, t, dt, turb, env, Rocket, Simulation, thrust_data, windIndex)
         print(round(t, 2), "seconds", end="\r")
         t += dt
+        windIndex += state[5] / 100 # changes wind from temporal to spatial
 
     print(t, t_end, state[2])
 
@@ -548,4 +555,14 @@ def simulate(Rocket, Simulation, env, engineFile):
 
     figManager = plt.get_current_fig_manager()
     figManager.window.showMaximized()
+    plt.show()
+
+    # plot wind x, y, z
+    plt.plot(t, [tracked_dict[t][13][0] for t in tracked_dict], label="u")
+    plt.plot(t, [tracked_dict[t][13][1] for t in tracked_dict], label="v")
+    plt.plot(t, [tracked_dict[t][13][2] for t in tracked_dict], label="w")
+    plt.xlabel("time (s)")
+    plt.ylabel("wind speed (m/s)")
+    plt.legend()
+    plt.grid(visible=True)
     plt.show()

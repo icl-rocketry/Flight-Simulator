@@ -54,7 +54,7 @@ if __name__ == "__main__":
         0,  # launchRailDirection (rad)
         0,  # windSpeed
         0,  # windDirection
-        0.1,  # timeStep
+        0.05,  # timeStep
         0,  # startTime
         100,  # endTime
     )
