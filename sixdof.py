@@ -5,8 +5,8 @@ script_path = os.path.abspath(__file__)
 script_dir = os.path.dirname(script_path)
 os.chdir(script_dir)
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 import quaternion
+from scipy.interpolate import RegularGridInterpolator
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
@@ -181,6 +181,39 @@ def getCoefficients(mach, alpha, Re, filename):
         return out
 
 
+# OpenRocket CD as this one isnt done yet
+def openRocketCD(mach):
+    # get Mach (first column) and Cd (second column) from the csv file
+    with open("dragCurve.csv", "r") as file:
+        # extract the values from the file
+        lines = file.readlines()
+        machs = []
+        Cds = []
+        for line in lines:
+            columns = line.split(",")
+            machs.append(float(columns[0]))
+            Cds.append(float(columns[1]))
+        # now interpolate to find the Cd at the current mach number
+        Cd = np.interp(mach, machs, Cds)
+        return Cd
+    
+
+def getCanardCL(alpha):
+    # get the lift coefficient of the canards from the NACA0012.csv file
+    with open("NACA0012.csv", "r") as file:
+        # extract the values from the file
+        lines = file.readlines()
+        alphas = []
+        CLs = []
+        for line in lines:
+            columns = line.split(",")
+            alphas.append(float(columns[0]))
+            CLs.append(float(columns[1]))
+        # now interpolate to find the Cd at the current mach number
+        CL = np.interp(alpha * 180 / np.pi, alphas, CLs)
+        return CL
+
+
 # main functions
 def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     """This function returns the derivatives of the state vector which is input. This can then be used to solve the ODEs for the next time step.''
@@ -193,7 +226,6 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     initialCall is a boolean which is True if this is the first time the function is called for this time step, and used to find old values
     """
     is_wind = True
-
     # Unpack the state vector
     r = state[0:3]
     dr = state[3:6]
@@ -238,15 +270,15 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     # get the coefficients
     Re = env.density * np.linalg.norm(dr) * length / env.mu
     if Re < 1e5:
-        Re = 1e5 # allows calculation of coefficients at low Re, this is just an approximation
+        Re = 1e5  # allows calculation of coefficients at low Re, this is just an approximation
     mach = np.linalg.norm(dr) / np.sqrt(1.4 * 287 * env.temperature)
     if np.linalg.norm(dr) == 0:
-        alpha = 0 # fixes singularity
+        alpha = 0  # fixes singularity
     else:
         alpha = np.arccos(np.dot(dr, direction) / np.linalg.norm(dr))
     Cn, Cm, xcp, Mq, Cd = getCoefficients(mach, alpha, Re, "aeroParams.csv")
-    Cd = 0.5
-    #print("Time: ", t, "Alt. :", r[2], "Mach: ", mach, "Alpha: ", alpha, "C_d: ", Cd)
+    Cd = openRocketCD(mach)
+    # print("Time: ", t, "Alt. :", r[2], "Mach: ", mach, "Alpha: ", alpha, "C_d: ", Cd)
 
     # Drag
     # wind
@@ -276,8 +308,26 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     on_rail = dr[2] > 0 and r[2] < launchRailLength * np.cos(launchRailAngle)
     if on_rail:
         D += 0.1 * D / np.linalg.norm(D)  # add rail friction
-    # Lift
-    L = np.array([0, 0, 0])  # TODO: add lift, this probably isnt that hard, just use Cl and alpha
+    # Lift - this is where the canards come in (assuming their drag contribution is negligible for now)
+    # first calculate the effective area of the canards:
+    # clamp roll to between -pi/6 and pi/6 due to symmetry
+    roll = np.arctan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x**2 + q.y**2))  # used to calculate the canard area
+    canardRoll = min(max(roll, -np.pi / 6), np.pi / 6)
+    # get the effective area of the canards
+    canardArea1 = np.cos(canardRoll + np.pi / 6) * Rocket.canardArea
+    canardArea2 = np.cos(canardRoll - np.pi / 6) * Rocket.canardArea
+    # get effective angle of attack for the canards
+    canardAlpha1 = alpha * np.cos(canardRoll + np.pi / 6)
+    canardAlpha2 = alpha * np.cos(canardRoll - np.pi / 6)
+    # use NACA0012.csv to get the lift coefficient of the canards (file is in degrees)
+    canardCL1 = getCanardCL(canardAlpha1)
+    canardCL2 = getCanardCL(canardAlpha2)
+    # get the lmagnitude of the lift force
+    magnitudeL = 0.5 * rho * np.linalg.norm(dr_wind)**2 * (canardArea1 * canardCL1 + canardArea2 * canardCL2)
+    # get the velocity vector's component perpendicular to the direction vector
+    dr_perp = np.dot(dr_wind, direction) * direction / np.linalg.norm(direction) - dr_wind
+    # this is the direction of the lift force, so normalise it and multiply by the magnitude
+    L = magnitudeL * dr_perp / np.linalg.norm(dr_perp)
     # Gravity
     G = np.array([0, 0, -m * env.g])
 
@@ -292,17 +342,18 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
         + (m - m_dry)
         / (m_wet - m_dry)
         * (Ilr_fuel + (m - m_dry) * np.array([[(Rt - R_tank) ** 2, 0, 0], [0, (Rt - R_tank) ** 2, 0], [0, 0, 0]]))
-    )  # TODO: openrocket seems to disagree with this?
+    )
     # centre of pressure moves too - but this is more complicated
     Rpt = length - xcp  # assuming the thrust comes out of the bottom of the rocket
-    Rp = Rt - Rpt
+    Rp = Rt - Rpt # distance from center of mass to pressure
+    Rc = xcp - Rocket.canardPos # distance from center of pressure to canards
     M_forces = np.cross(T, Rt * direction) + np.cross(
-        D + L, Rp * direction
+        D, Rp * direction) + np.cross(L, Rc * direction
     )  # moment - thrust contribution is currently zero but this supports TVC
 
     # Damping stuff
     # get the pitch rate
-    M_damping_pitch = np.array([0, 0, 0]) # TODO: do this properly
+    M_damping_pitch = np.array([0, 0, 0])  # TODO: do this properly
     M = M_forces + M_damping_pitch
 
     # derivative of the velocity vector can now be calculated
@@ -332,7 +383,9 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
 # using my own solver so it goes in order of increasing time
 
 
-def RK4(state, t, dt, turb, env, Rocket, Simulation, thrust_data):  # other methods can be used but this is a good start
+def RK4(
+    state, t, dt, turb, env, Rocket, Simulation, thrust_data
+):  # other methods can be used but this is a good start
     """This function uses the 4th order Runge-Kutta method to solve the ODEs for the next time step."""
     # calculate the derivatives of the state vector
     k1, trackedValues = recalculate(
