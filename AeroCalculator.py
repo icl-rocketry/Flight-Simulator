@@ -45,7 +45,7 @@ def getValue3D(x, y, z, filename):
     if z in zValues:
         return interpAbove([x, y])[0]
 
-    val = (interpAbove([x, y]) * (zValues[aboveIndex] - z) + interpBelow([x, y]) * (z - zValues[belowIndex])) / (
+    val = (interpBelow([x, y]) * (zValues[aboveIndex] - z) + interpAbove([x, y]) * (z - zValues[belowIndex])) / (
         zValues[aboveIndex] - zValues[belowIndex]
     )
     return val[0]
@@ -90,10 +90,10 @@ def getAeroParams(M, alpha, logR, Rocket):
     Re = 10**logR
     beta = abs(M**2 - 1) ** 0.5
 
-    if M >= 0.8 or M <= 1.36 ** 0.5:
-        beta = 0.64 # avoid singularities
+    if M >= 0.8 or M <= 1.36**0.5:
+        beta = 0.64  # avoid singularities
     if beta >= 1 and beta <= 1.001:
-        beta = 1.001 # avoid singularities
+        beta = 1.001  # avoid singularities
 
     # interpolating from ESDU 89008
     Cna_l = getValue2D(M, lfd, "inviscid.csv")
@@ -299,14 +299,15 @@ def getAeroParams(M, alpha, logR, Rocket):
         Cd_beta = getValue3D(dbd, boattailAngle, M, "boattailDragTransonic.csv")
     else:
         # Supersonic base drag - ESDU 79022
-        Cdb = getValue3D(dbd ** 2, boattailAngle, M, "baseDragSupersonic.csv")
-        Cd_beta = 0 # this is accounted for in the wave drag (ESDU B.S.02.03.02)
+        Cdb = getValue3D(dbd**2, boattailAngle, M, "baseDragSupersonic.csv")
+        # ESDU B.S.02.03.02 - boattail drag coefficient (wave drag)
+        Cd_beta = (D / (2 * lad)) ** 2 * getValue3D(dbd**2, boattailAngle, M, "boattailDragSupersonic.csv")
 
     F = getValue2D(M, alpha, "angleDrag.csv")  # angle of attack effect on base drag
     # TODO: Use ESDU 02012 for the effect of the jet - ignore this until we can get exhaust temperature and pressure
 
     Cdw = 0  # wave drag - use ESDU B.S.02.03.01
     Cdwv = 0  # viscous form drag?
-    Cd = Cdp + Cdw + Cdwv + F * (Cdb + Cd_beta) # Cdf is taken into account in Cdp
+    Cd = Cdp + Cdw + Cdwv + F * (Cdb + Cd_beta) + Cf
 
-    return Cn, Cm, xcp, Mq, Cd
+    return Cn, Cm, xcp, Mq, Cd, Cdp, Cdw, Cdwv, F * (Cdb + Cd_beta), Cf

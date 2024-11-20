@@ -280,7 +280,7 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     else:
         alpha = np.arccos(np.dot(dr, direction) / np.linalg.norm(dr))
     Cn, Cm, xcp, Mq, Cd = getCoefficients(mach, alpha, Re, "aeroParams.csv")
-    Cd = openRocketCD(mach)
+    # Cd = openRocketCD(mach)
     # print("Time: ", t, "Alt. :", r[2], "Mach: ", mach, "Alpha: ", alpha, "C_d: ", Cd)
 
     # Drag
@@ -480,10 +480,12 @@ def simulate(Rocket, Simulation, env, engineFile):
     # create figure with 6 subplots
     fig, axs = plt.subplots(2, 3, constrained_layout=True)
 
-    #print generic flight info
+    # print generic flight info
     print("\nFlight info:")
     print("Apogee: {:.0f} m".format(max([r[i][2] for i in range(len(r))])))
-    print("Max speed: {:.0f} m/s".format(max([np.linalg.norm([dr[i][0], dr[i][1], dr[i][2]]) for i in range(len(dr))])))
+    print(
+        "Max speed: {:.0f} m/s".format(max([np.linalg.norm([dr[i][0], dr[i][1], dr[i][2]]) for i in range(len(dr))]))
+    )
     print("Max acceleration: {:.0f} m/s^2".format(max([np.linalg.norm(tracked_dict[t][0]) for t in tracked_dict])))
     print("Max Mach number: {:.2f}".format(max([tracked_dict[t][9] for t in tracked_dict])))
 

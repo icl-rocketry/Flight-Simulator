@@ -40,7 +40,9 @@ if __name__ == "__main__":
             print(f"Calculating the rocket's aerodyamic parameters at Mach {M:.1f}", end="\r")
             for alpha in alphaList:
                 for logR in arange(5, 9.5, 0.5):
-                    Cn, Cm, xcp, Mq, Cd = AeroCalculator.getAeroParams(M, alpha, logR, Nimbus)
+                    Cn, Cm, xcp, Mq, Cd, Cdp, Cdw, Cdwv, Cdbase, Cf = AeroCalculator.getAeroParams(
+                        M, alpha, logR, Nimbus
+                    )
                     f.write(f"{M},{alpha},{logR},{Cn},{Cm},{xcp},{Mq},{Cd}\n")
     # Initialise simulation
     print("\nInitialising simulation")
@@ -58,4 +60,36 @@ if __name__ == "__main__":
     print("Initialising environment")
     env = sim.Environment()  # TODO: allow parameters to go in here, incuding moving windSpeed and windDirection
     # Run simulation
-    sim.simulate(Nimbus, Simulation, env, "NimbusThrustCurve.eng")
+    # sim.simulate(Nimbus, Simulation, env, "NimbusThrustCurve.eng")
+
+    # also plot Cd vs mach number for Mach 0 to 2 in 0.1 increments at alpha = 0 and logR = 8
+
+    CdList = []
+    CdpList = []
+    CdwList = []
+    CdwvList = []
+    CdbaseList = []
+    CfList = []
+    machList = arange(0, 3.1, 0.01)
+    for M in machList:
+        Cn, Cm, xcp, Mq, Cd, Cdp, Cdw, Cdwv, Cdbase, Cf = AeroCalculator.getAeroParams(M, 0, 8, Nimbus)
+        CdList.append(Cd)
+        CdpList.append(Cdp)
+        CdwList.append(Cdw)
+        CdwvList.append(Cdwv)
+        CdbaseList.append(Cdbase)
+        CfList.append(Cf)
+
+    import matplotlib.pyplot as plt
+
+    plt.plot(machList, CdList)
+    plt.plot(machList, CdpList)
+    plt.plot(machList, CdwList)
+    plt.plot(machList, CdwvList)
+    plt.plot(machList, CdbaseList)
+    plt.plot(machList, CfList)
+    plt.xlabel("Mach number")
+    plt.ylabel("Coefficient")
+    plt.legend(["Cd", "Cdp", "Cdw", "Cdwv", "Cdbase", "Cdf"])
+    plt.grid()
+    plt.show()
