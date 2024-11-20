@@ -1,6 +1,7 @@
 # general imports
 import numpy as np
 from matplotlib import pyplot as plt
+
 # forecasting API imports, download for new users
 import requests_cache
 import openmeteo_requests
@@ -8,7 +9,7 @@ from retry_requests import retry
 
 
 class Environment:
-    def __init__(self,modelAtmo=False):
+    def __init__(self):
         """
         ----------------------------------------------------------------------
         a: Speed of sound (m/s)
@@ -48,39 +49,152 @@ class Environment:
         self.density = 1.225
         self.temperature = 288.15
         self.a = np.sqrt(self.gamma * self.R * self.temperature)
+        self.mu = 1.458 * 10**-6 * (self.temperature**1.5) / (self.temperature + 110.4)
 
         # Wind Simulation Parameters
         self.deltaTime = 0.05  # openRocket recommends 0.05s. Can be different from the simulation timestep
-        self.sampleLength = 2
-        self.totalLength = 200
+        self.sampleLength = 20
+        self.totalLength = 20
         self.userWind = False
-        self.modelAtmo = modelAtmo
+        self.modelAtmo = False
 
-        # Wind Parameters
-        self.windSpeed = 8  # at 10m altitude. TODO: allow for more complex user-defined wind models
-        self.windDirection = 120
+        # Wind Parameters - windSpeed and windDirection are only used if userWind is True
+        self.windSpeed = 9  # at 10m altitude. TODO: allow for more complex user-defined wind models
+        self.windDirection = np.pi / 3
         self.turbulenceIntensity = 0.15  # typically 0.1-0.2
         self.z0 = 0.001
-        self.z1 = 1000 * (self.z0 ** 0.18)
+        self.z1 = 1000 * (self.z0**0.18)
 
         # Planet Parameters
         self.earthMass = 5.97e24
-        self.earthRadius = 6.36e6
+        self.earthRadius = 6.371e6
         self.G = 6.67e-11
-        self.latitude = 39.478
-        self.longitude = -8.3364
+        self.latitude = 55.05
+        self.longitude = -2.55
 
         # Rocket Parameters
         self.altitudeLast = 0
-        self.rocketVelocity = 100  # this should come from the rocket class but there isn't one yet
+        self.rocketVelocity = 100 # e.g. 20 m/s at 0.05s equals 1m height resolution
 
-    def atmosphere(self, altitude):
+        # pressure list
+        self.pressureList = [
+            1000,
+            975,
+            950,
+            925,
+            900,
+            850,
+            800,
+            700,
+            600,
+            500,
+            400,
+            300,
+            250,
+            200,
+            150,
+            100,
+            70,
+            50,
+            30,
+        ]  # hPa
+
+        self.params = {
+            "latitude": self.latitude,  # this is near EuRoC
+            "longitude": self.longitude,
+            "hourly": [
+                "temperature_1000hPa",
+                "temperature_975hPa",
+                "temperature_950hPa",
+                "temperature_925hPa",
+                "temperature_900hPa",
+                "temperature_850hPa",
+                "temperature_800hPa",
+                "temperature_700hPa",
+                "temperature_600hPa",
+                "temperature_500hPa",
+                "temperature_400hPa",
+                "temperature_300hPa",
+                "temperature_250hPa",
+                "temperature_200hPa",
+                "temperature_150hPa",
+                "temperature_100hPa",
+                "temperature_70hPa",
+                "temperature_50hPa",
+                "temperature_30hPa",
+                "windspeed_1000hPa",
+                "windspeed_975hPa",
+                "windspeed_950hPa",
+                "windspeed_925hPa",
+                "windspeed_900hPa",
+                "windspeed_850hPa",
+                "windspeed_800hPa",
+                "windspeed_700hPa",
+                "windspeed_600hPa",
+                "windspeed_500hPa",
+                "windspeed_400hPa",
+                "windspeed_300hPa",
+                "windspeed_250hPa",
+                "windspeed_200hPa",
+                "windspeed_150hPa",
+                "windspeed_100hPa",
+                "windspeed_70hPa",
+                "windspeed_50hPa",
+                "windspeed_30hPa",
+                "winddirection_1000hPa",
+                "winddirection_975hPa",
+                "winddirection_950hPa",
+                "winddirection_925hPa",
+                "winddirection_900hPa",
+                "winddirection_850hPa",
+                "winddirection_800hPa",
+                "winddirection_700hPa",
+                "winddirection_600hPa",
+                "winddirection_500hPa",
+                "winddirection_400hPa",
+                "winddirection_300hPa",
+                "winddirection_250hPa",
+                "winddirection_200hPa",
+                "winddirection_150hPa",
+                "winddirection_100hPa",
+                "winddirection_70hPa",
+                "winddirection_50hPa",
+                "winddirection_30hPa",
+                "geopotential_height_1000hPa",
+                "geopotential_height_975hPa",
+                "geopotential_height_950hPa",
+                "geopotential_height_925hPa",
+                "geopotential_height_900hPa",
+                "geopotential_height_850hPa",
+                "geopotential_height_800hPa",
+                "geopotential_height_700hPa",
+                "geopotential_height_600hPa",
+                "geopotential_height_500hPa",
+                "geopotential_height_400hPa",
+                "geopotential_height_300hPa",
+                "geopotential_height_250hPa",
+                "geopotential_height_200hPa",
+                "geopotential_height_150hPa",
+                "geopotential_height_100hPa",
+                "geopotential_height_70hPa",
+                "geopotential_height_50hPa",
+                "geopotential_height_30hPa",
+                "wind_speed_10m",
+                "wind_direction_10m",
+                "temperature_2m",
+            ],
+            "wind_speed_unit": "ms",
+            "timezone": "auto",
+            "forecast_days": 1,
+        }
+
+    def atmosphere(self, altitude, rocketHeightDifference):
         # Basic ISA Atmospheric Model for now, assume constant g (geopotential)
 
         # Finding Lapse Rate (K/m)
-        if altitude < 0:
+        if altitude < -1:
             lapseRate = 0
-            raise Exception("Rocket disappeared.")
+            # raise Exception("Rocket disappeared.")
         elif 0 <= altitude <= 11000:
             lapseRate = 0.0065
         elif 11000 < altitude <= 20000:
@@ -90,17 +204,19 @@ class Environment:
         else:
             lapseRate = 0
 
-        d_altitude = altitude - self.altitudeLast  # Compute altitude difference
-        self.altitudeLast = altitude  # Store previous altitude
-
         if self.modelAtmo:
-            self.temperature -= lapseRate * d_altitude  # Temperature variation
-            self.pressure = self.pressure * (1 - lapseRate / 288.15) ** (
-            self.g / (self.R * lapseRate)
-            )  # Pressure variation
-            self.density = self.density * (1 - lapseRate / 288.15) ** (
-            self.g / (self.R * lapseRate) - 1
-            )  # Density variation
+            self.temperature -= lapseRate * rocketHeightDifference  # Temperature variation
+            if 0 <= altitude <= 32000:
+                self.pressure = self.pressure * (1 - lapseRate / 288.15) ** (
+                    self.g / (self.R * lapseRate)
+                )  # Pressure variation
+                self.density = self.density * (1 - lapseRate / 288.15) ** (
+                    self.g / (self.R * lapseRate) - 1
+                )  # Density variation
+            else:
+                self.pressure = 0
+                self.density = 0
+
         else:
             # interpolate temperature and pressure from the forecast
             self.temperature, self.pressure = self.getForecastProperties(altitude)
@@ -109,8 +225,9 @@ class Environment:
     def getTurbulence(self, altitude, sampleLength):
         # uses the Kaimal spectrum, returns a time series of turbulence. Only needs to switch at z=30m
         # setup parameters (IEC 1999)
-        freq = 20  # max. frequency (Hz)
-        maxFreq = freq**2 * self.deltaTime
+        minFreq = 2  # min. frequency (Hz)
+        freq = 10  # max. frequency (Hz)
+        maxFreq = freq**2 / self.deltaTime
         uBar = []  # set up IFFT inputs
         vBar = []
         wBar = []
@@ -127,7 +244,7 @@ class Environment:
 
         # calculate the PSD and set it up for IFFT
         self.timeSeries = np.arange(0, sampleLength, self.deltaTime)
-        for f in np.linspace(0, maxFreq, len(self.timeSeries) // 2):
+        for f in np.linspace(minFreq, maxFreq, len(self.timeSeries) // 2):
             PSDu = (4 * Lu / self.rocketVelocity) / ((1 + 70.8 * (f * Lu / self.rocketVelocity) ** 2) ** (5 / 6))
             PSDv = (
                 (4 * Lv / self.rocketVelocity)
@@ -160,9 +277,9 @@ class Environment:
 
         # scale to match the standard deviation of 1
         if np.std(u) != 0:
-            u = u / np.std(u)
-            v = v / np.std(v)
-            w = w / np.std(w)
+            u = u / np.std(u) * self.turbulenceIntensity
+            v = v / np.std(v) * self.turbulenceIntensity
+            w = w / np.std(w) * self.turbulenceIntensity
 
         # return the time series
         return np.transpose(u), np.transpose(v), np.transpose(w)
@@ -171,7 +288,13 @@ class Environment:
         # get the upper level winds from the Open-Meteo API if a user-defined wind model is not used
         # otherwise, just use the simple user-defined wind model like openRocket does (boring!)
         if self.userWind:
-            data = np.array([[0, self.windSpeed, self.windDirection], [22000, self.windSpeed, self.windDirection]])
+            data = np.array(
+                [
+                    [0, self.windSpeed, self.windDirection, self.temperature],
+                    [22000, self.windSpeed, self.windDirection, self.temperature],
+                ]
+            )
+
         else:
             data = []
             # Setup the Open-Meteo API client with cache and retry on error
@@ -182,95 +305,7 @@ class Environment:
             # Make sure all required weather variables are listed here
             # The order of variables in hourly or daily is important to assign them correctly below
             url = "https://api.open-meteo.com/v1/forecast"
-            params = {
-                "latitude": self.latitude,  # this is near EuRoC
-                "longitude": self.longitude,
-                "hourly": [
-                    "temperature_1000hPa",
-                    "temperature_975hPa",
-                    "temperature_950hPa",
-                    "temperature_925hPa",
-                    "temperature_900hPa",
-                    "temperature_850hPa",
-                    "temperature_800hPa",
-                    "temperature_700hPa",
-                    "temperature_600hPa",
-                    "temperature_500hPa",
-                    "temperature_400hPa",
-                    "temperature_300hPa",
-                    "temperature_250hPa",
-                    "temperature_200hPa",
-                    "temperature_150hPa",
-                    "temperature_100hPa",
-                    "temperature_70hPa",
-                    "temperature_50hPa",
-                    "temperature_30hPa",
-                    "windspeed_1000hPa",
-                    "windspeed_975hPa",
-                    "windspeed_950hPa",
-                    "windspeed_925hPa",
-                    "windspeed_900hPa",
-                    "windspeed_850hPa",
-                    "windspeed_800hPa",
-                    "windspeed_700hPa",
-                    "windspeed_600hPa",
-                    "windspeed_500hPa",
-                    "windspeed_400hPa",
-                    "windspeed_300hPa",
-                    "windspeed_250hPa",
-                    "windspeed_200hPa",
-                    "windspeed_150hPa",
-                    "windspeed_100hPa",
-                    "windspeed_70hPa",
-                    "windspeed_50hPa",
-                    "windspeed_30hPa",
-                    "winddirection_1000hPa",
-                    "winddirection_975hPa",
-                    "winddirection_950hPa",
-                    "winddirection_925hPa",
-                    "winddirection_900hPa",
-                    "winddirection_850hPa",
-                    "winddirection_800hPa",
-                    "winddirection_700hPa",
-                    "winddirection_600hPa",
-                    "winddirection_500hPa",
-                    "winddirection_400hPa",
-                    "winddirection_300hPa",
-                    "winddirection_250hPa",
-                    "winddirection_200hPa",
-                    "winddirection_150hPa",
-                    "winddirection_100hPa",
-                    "winddirection_70hPa",
-                    "winddirection_50hPa",
-                    "winddirection_30hPa",
-                    "geopotential_height_1000hPa",
-                    "geopotential_height_975hPa",
-                    "geopotential_height_950hPa",
-                    "geopotential_height_925hPa",
-                    "geopotential_height_900hPa",
-                    "geopotential_height_850hPa",
-                    "geopotential_height_800hPa",
-                    "geopotential_height_700hPa",
-                    "geopotential_height_600hPa",
-                    "geopotential_height_500hPa",
-                    "geopotential_height_400hPa",
-                    "geopotential_height_300hPa",
-                    "geopotential_height_250hPa",
-                    "geopotential_height_200hPa",
-                    "geopotential_height_150hPa",
-                    "geopotential_height_100hPa",
-                    "geopotential_height_70hPa",
-                    "geopotential_height_50hPa",
-                    "geopotential_height_30hPa",
-                    "wind_speed_10m",
-                    "wind_direction_10m",
-                    "temperature_2m",
-                ],
-                "wind_speed_unit": "ms",
-                "timezone": "auto",
-                "forecast_days": 1,
-            }
-            responses = openmeteo.weather_api(url, params=params)
+            responses = openmeteo.weather_api(url, params=self.params)
 
             # Process first location. Add a for-loop for multiple locations or weather models
             response = responses[0]
@@ -287,23 +322,21 @@ class Environment:
                     0,
                     hourly.Variables(76).ValuesAsNumpy()[0],  # type: ignore
                     hourly.Variables(77).ValuesAsNumpy()[0],  # type: ignore
-                    hourly.Variables(78).ValuesAsNumpy()[0]+273.15,  # type: ignore
+                    hourly.Variables(78).ValuesAsNumpy()[0] + 273.15,  # type: ignore
                 ]
                 data.append(surfaceValues)  # add the surface values to the data array
-                for i in range(0, n):  # Loop through all pressure levels
+                for i in range(n):  # Loop through all pressure levels
                     geopotential_height = hourly.Variables(i + 57).ValuesAsNumpy()  # type: ignore
                     windspeed = hourly.Variables(i + 19).ValuesAsNumpy()  # type: ignore
                     winddirection = hourly.Variables(i + 38).ValuesAsNumpy()  # type: ignore
                     temperature = hourly.Variables(i).ValuesAsNumpy()  # type: ignore
-                    data.append([geopotential_height[0], windspeed[0], winddirection[0], temperature[0]+273.15])  # type: ignore
+                    data.append([geopotential_height[0], windspeed[0], winddirection[0], temperature[0] + 273.15])  # type: ignore
 
-        self.upperLevelWinds = np.array(data)
+        self.upperLevelWinds = np.array(data[1:])  # TODO: fix this as it shouldn't be like this i dont think
 
     def getUpperLevelWinds(self, altitude):
         # returns the mean wind speed and direction at a given altitude using the forecast/user-defined wind model
-        if altitude < min(self.upperLevelWinds[:, 0]):
-            return 0, 0
-        elif altitude > max(self.upperLevelWinds[:, 0]):
+        if altitude > max(self.upperLevelWinds[:, 0]):
             return 0, 0
         else:
             # interpolate speed
@@ -317,9 +350,9 @@ class Environment:
     def getForecastProperties(self, altitude):  # using the Open-Meteo API
         # returns the forecast temperature and pressure at a given altitude. Forecast must be fetched first
         if altitude < min(self.upperLevelWinds[:, 0]):
-            return 288.15, 101325
+            return self.upperLevelWinds[0, 3], self.pressureList[0] * 100
         elif altitude > max(self.upperLevelWinds[:, 0]):
-            return 0, 0
+            return 288.15, 0
         else:
             # interpolate temperature
             temperature = np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 3])
@@ -345,77 +378,12 @@ class Environment:
                 50,
                 30,
             ]  # hPa
+            # sometimes the code doesnt work because of the weather
+            # as a result, the interpolation fails
+            if len(self.upperLevelWinds[:, 0]) != len(pressureList):
+                # pad the shorter array with leading zeros
+                pressureList = np.pad(
+                    pressureList, (len(self.upperLevelWinds[:, 0]) - len(pressureList), 0), "constant"
+                )
             pressure = np.interp(altitude, self.upperLevelWinds[:, 0], pressureList) * 100  # Pa
             return temperature, pressure
-
-
-#-------------------------------------------------------------------------------------- END -------------------------------------------------------------------------------------
-
-# Test Code
-if __name__ == "__main__":
-    env = Environment()
-    env.getForecast()  # this must be done before the simulation starts - could do it in __init__
-    uList = []
-    vList = []
-    wList = []
-    uM = []
-    vM = []
-    tList = []
-    t = 0
-    alt = 2  # start at non-zero value to avoid divide by zero errors. This is fine as we will simulate a launch rail
-    steps = 0
-    stepsSince = 0
-    finalCalc = False  # stops turbulence calc once the length scale is constant (above z1)
-    # the following dont really need to be here but python throws an error if they are unbound
-    u = []
-    v = []
-    w = []
-
-    # plot the wind over time, while altitude changes (that makes it really complicated)
-    # this mess will most likely go in the simulation class or similar but it's here for testing purposes now
-    # TODO: see if theres a nice way to smooth the discontinuities from length scale recalculation which doesnt remove the high-frequency content
-    while alt < 3000:
-        t += env.deltaTime
-        # every sampleLength seconds, recalculate the turbulence
-        if steps % (env.sampleLength / env.deltaTime) == 0:
-            if alt < env.z1:
-                u, v, w = env.getTurbulence(alt, env.sampleLength)  # get the new time series of wind
-                stepsSince = 0
-            elif not finalCalc:  # get the new (long-lasting) time series of wind
-                u, v, w = env.getTurbulence(alt, env.totalLength)
-                stepsSince = 0
-                finalCalc = True
-
-        tList.append(t)
-        uMean, vMean = env.getUpperLevelWinds(alt)
-        uM.append(uMean)
-        vM.append(vMean)
-        try:
-            totalSpeed = np.sqrt(uMean**2 + vMean**2)
-            uTotal = uMean + (u[stepsSince] * env.turbulenceIntensity * totalSpeed)
-            vTotal = vMean + (v[stepsSince] * env.turbulenceIntensity * totalSpeed)
-            wTotal = w[stepsSince] * totalSpeed * 0.1
-        except IndexError:
-            print("The time for which the turbulence is generated 'totalLength' is too short, increase it to cover the entire flight.")
-            break
-        alt += env.rocketVelocity * env.deltaTime
-        steps += 1
-        stepsSince += 1
-        uList.append(uTotal)
-        vList.append(vTotal)
-        wList.append(wTotal)
-
-    # remove the last items of u,v,w, to make them the same length as t as the last step will be incomplete
-
-    # plot the wind
-    try:
-        plt.plot(tList, uList, label="u")
-        plt.plot(tList, vList, label="v")
-        plt.plot(tList, wList, label="w")
-        plt.legend()
-        plt.xlabel("Time (s)")
-        plt.ylabel("Wind Speed (m/s)")
-        plt.title("Wind Speed vs Time")
-        plt.show()
-    except ValueError:
-        print("The simulation ran into an error and cannot plot the data.")
