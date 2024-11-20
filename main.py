@@ -35,7 +35,7 @@ if __name__ == "__main__":
     """The table is created using the getAeroParams function and the results are stored in a csv file"""
     alphaList = [0, 1, 2, 5, 10, 15, 20, 30, 40, 60, 90]
     with open("aeroParams.csv", "w") as f:
-        for M in arange(0, 1.5, 0.1):
+        for M in arange(0, 1.1, 0.1):
             # print the mach number considered to 2 decimal places
             print(f"Calculating the rocket's aerodyamic parameters at Mach {M:.1f}", end="\r")
             for alpha in alphaList:
@@ -50,7 +50,7 @@ if __name__ == "__main__":
         0,  # launchRailDirection (rad)
         0,  # windSpeed
         0,  # windDirection
-        0.05,  # timeStep
+        0.1,  # timeStep
         0,  # startTime
         100,  # endTime
     )
