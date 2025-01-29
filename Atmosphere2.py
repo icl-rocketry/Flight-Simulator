@@ -55,13 +55,13 @@ class Environment:
         self.deltaTime = 0.05  # openRocket recommends 0.05s. Can be different from the simulation timestep
         self.sampleLength = 20
         self.totalLength = 20
-        self.userWind = False
+        self.userWind = True
         self.modelAtmo = False
 
         # Wind Parameters - windSpeed and windDirection are only used if userWind is True
-        self.windSpeed = 9  # at 10m altitude. TODO: allow for more complex user-defined wind models
-        self.windDirection = np.pi / 3
-        self.turbulenceIntensity = 0.15  # typically 0.1-0.2
+        self.windSpeed = 6.5  # at 10m altitude. TODO: allow for more complex user-defined wind models
+        self.windDirection = 0
+        self.turbulenceIntensity = 0.1  # typically 0.1-0.2
         self.z0 = 0.001
         self.z1 = 1000 * (self.z0**0.18)
 
@@ -340,7 +340,7 @@ class Environment:
             return 0, 0
         else:
             # interpolate speed
-            speed = np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 1])
+            speed = -np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 1])
             # interpolate direction
             direction = np.interp(altitude, self.upperLevelWinds[:, 0], self.upperLevelWinds[:, 2])
             U = speed * np.sin(direction * np.pi / 180)

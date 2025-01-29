@@ -301,7 +301,8 @@ def getAeroParams(M, alpha, logR, Rocket):
         # Supersonic base drag - ESDU 79022
         Cdb = getValue3D(dbd**2, boattailAngle, M, "baseDragSupersonic.csv")
         # ESDU B.S.02.03.02 - boattail drag coefficient (wave drag)
-        Cd_beta = (D / (2 * lad)) ** 2 * getValue3D(dbd**2, boattailAngle, M, "boattailDragSupersonic.csv")
+        #Cd_beta = (D / (2 * lad)) ** 2 * getValue3D(dbd**2, boattailAngle, M, "boattailDragSupersonic.csv")
+        Cd_beta = 0
 
     F = getValue2D(M, alpha, "angleDrag.csv")  # angle of attack effect on base drag
     # TODO: Use ESDU 02012 for the effect of the jet - ignore this until we can get exhaust temperature and pressure

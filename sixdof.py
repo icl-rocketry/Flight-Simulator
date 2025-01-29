@@ -252,7 +252,7 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     launchRailLength = Simulation.launchRailLength
     launchRailAngle = Simulation.launchRailAngle
 
-    # centre of mass moves - calculate it
+    # centre of mass moves - calculate it. Can be adjusted
     Rt = (Rt_dry * m_dry + R_tank * (m - m_dry)) / state[
         13
     ]  # distance from center of mass to thrust vector at current time
@@ -280,7 +280,8 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     else:
         alpha = np.arccos(np.dot(dr, direction) / np.linalg.norm(dr))
     Cn, Cm, xcp, Mq, Cd = getCoefficients(mach, alpha, Re, "aeroParams.csv")
-    # Cd = openRocketCD(mach)
+    #Cd = openRocketCD(mach)
+    Cd = Cd + 0.36 # this is how much the calculation is off by for now
     # print("Time: ", t, "Alt. :", r[2], "Mach: ", mach, "Alpha: ", alpha, "C_d: ", Cd)
 
     # Drag
@@ -314,6 +315,8 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     # first calculate the effective area of the canards:
     # clamp roll to between -pi/6 and pi/6 due to symmetry
     roll = np.arctan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x**2 + q.y**2))  # used to calculate the canard area
+
+    # this can all go
     canardRoll = min(max(roll, -np.pi / 6), np.pi / 6)
     # get the effective area of the canards
     canardArea1 = np.cos(canardRoll + np.pi / 6) * Rocket.canardArea
@@ -331,10 +334,12 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
     # this is the direction of the lift force, so normalise it and multiply by the magnitude
     L = magnitudeL * dr_perp / np.linalg.norm(dr_perp)
     D_canard = -0.5 * rho * np.linalg.norm(dr_wind) * (canardArea1 * canardCD1 + canardArea2 * canardCD2) * dr_wind
+
+
     # Gravity
     G = np.array([0, 0, -m * env.g])
     # Drag
-    D = D_translate + D_rotate + D_canard
+    D = D_translate + D_rotate + D_canard # also change this when canards are gone
 
     # derivative of the quaternion
     w_quat = np.quaternion(0, w[0], w[1], w[2])  # angular velocity as a quaternion
@@ -390,7 +395,7 @@ def recalculate(t, state, dt, turb, env, Rocket, Simulation, thrust_data):
 
 def RK4(
     state, t, dt, turb, env, Rocket, Simulation, thrust_data
-):  # other methods can be used but this is a good start
+):  # other met  hods can be used but this is a good start
     """This function uses the 4th order Runge-Kutta method to solve the ODEs for the next time step."""
     # calculate the derivatives of the state vector
     k1, trackedValues = recalculate(
